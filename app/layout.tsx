@@ -1,5 +1,6 @@
 import { Montserrat } from "next/font/google"
 import type { Metadata } from "next"
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -28,7 +29,9 @@ export default function RootLayout({
       className={cn("antialiased", montserrat.variable)}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <TooltipProvider>
+          <ThemeProvider>{children}</ThemeProvider>
+        </TooltipProvider>
       </body>
     </html>
   )
