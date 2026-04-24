@@ -65,9 +65,12 @@ export async function PUT(request: Request){
         //* SI EXISTE IMAGEN NUEVA
         if(imagen_perfil && imagen_perfil.size > 0){
             //* ELIMINAMOS IMAGEN ANTERIOR
-            if(perfilActual?.imagen_perfil){
+            if (perfilActual?.imagen_perfil) {
                 const pathAnterior = perfilActual.imagen_perfil.split("/").pop();
-                if(pathAnterior){
+
+                const ES_IMAGEN_DEFAULT = pathAnterior === "sin_perfil.jpg";
+
+                if (pathAnterior && !ES_IMAGEN_DEFAULT) {
                     await supabaseClient.storage
                     .from("imagen_perfil")
                     .remove([pathAnterior]);
@@ -76,7 +79,7 @@ export async function PUT(request: Request){
 
             //* SUBIMOS NUEVA IMAGEN
             const fileExt = imagen_perfil.name.split(".").pop();
-            const fileName = `imagen_perfil/${user.id}-${Date.now()}`;
+            const fileName = `${user.id}-${Date.now()}.${fileExt}`;
             const { error: uploadError } = await supabaseClient.storage
             .from("imagen_perfil")
             .upload(fileName, imagen_perfil, {
@@ -85,7 +88,7 @@ export async function PUT(request: Request){
 
             if (uploadError) {
                 return NextResponse.json(
-                { error: "Error al subir imagen" },
+                { error: uploadError.message },
                 { status: 500 }
                 );
             }
