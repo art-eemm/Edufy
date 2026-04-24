@@ -1,11 +1,46 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { Button } from "../ui/button"
 import { CourseCard } from "./course-card"
-import { courses } from "@/lib/mock-data"
 
 export function FeaturedCourses() {
-  const featuredCourses = courses.slice(0, 6)
+  const [featuredCourses, setFeaturedCourses] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const res = await fetch("/api/cursos")
+        const data = await res.json()
+
+        if (res.ok) {
+          const mappedCourses = data.map((c: any) => ({
+            id: c.id_curso,
+            title: c.nombre,
+            description: c.descripcion,
+            teacherName: c.perfiles?.nombre_completo || "Profesor",
+            createdAt: c.fecha_creacion,
+            category: "General",
+            level: "principiante",
+            duration: "Por definir",
+            studentsCount: 0,
+            rating: 5.0,
+            price: 0,
+          }))
+          setFeaturedCourses(mappedCourses.slice(0, 6))
+        }
+      } catch (error) {
+        console.error("Error al obtener cursos destacados:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCourses()
+  }, [])
 
   return (
     <section id="cursos" className="bg-muted/30 py-20">

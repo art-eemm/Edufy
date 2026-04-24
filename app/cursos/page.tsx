@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   Search,
@@ -23,15 +23,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { courses, categories } from "@/lib/mock-data"
 import { Navbar } from "@/components/landing/navbar"
 import { Footer } from "@/components/landing/footer"
 
+const categories = ["Desarrollo", "Diseño", "Negocios", "General"]
+
 export default function CursosPage() {
+  const [courses, setCourses] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [levelFilter, setLevelFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<string>("popular")
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const res = await fetch("/api/cursos")
+        const data = await res.json()
+
+        if (res.ok) {
+          const mappedCourses = data.map((c: any) => ({
+            id: c.id_curso,
+            title: c.nombre,
+            description: c.descripcion,
+            teacherName: c.perfiles?.nombre_completo || "Profesor",
+            createdAt: c.fecha_creacion,
+            // Valores por defecto para mantener el diseño visual intacto
+            category: "General",
+            level: "principiante",
+            duration: "Por definir",
+            studentsCount: 0,
+            rating: 5.0,
+            price: 0,
+          }))
+          setCourses(mappedCourses)
+        }
+      } catch (error) {
+        console.error("Error al obtener cursos:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchCourses()
+  }, [])
 
   const filteredCourses = courses
     .filter((course) => {
@@ -293,6 +329,7 @@ export default function CursosPage() {
           </div>
         )}
       </main>
+      <Footer />
     </div>
   )
 }
