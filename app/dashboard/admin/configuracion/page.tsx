@@ -178,10 +178,115 @@ export default function ConfiguracionPage() {
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>Notificaciones push</Label>
+                <p className="text-sm text-muted-foreground">
+                  Recibe alertas en el navegador
+                </p>
+              </div>
+              <Switch
+                checked={notifications.push}
+                onCheckedChange={(checked) =>
+                  setNotifications({ ...notifications, push: checked })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Nuevos usuarios</Label>
+                <p className="text-sm text-muted-foreground">
+                  Alertas cuando se registran usuarios
+                </p>
+              </div>
+              <Switch
+                checked={notifications.newUsers}
+                onCheckedChange={(checked) =>
+                  setNotifications({ ...notifications, newUsers: checked })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Nuevos cursos</Label>
+                <p className="text-sm text-muted-foreground">
+                  Alertas cuando se crean cursos
+                </p>
+              </div>
+              <Switch
+                checked={notifications.newCourses}
+                onCheckedChange={(checked) =>
+                  setNotifications({ ...notifications, newCourses: checked })
+                }
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              <CardTitle>Configuración de la Plataforma</CardTitle>
+            </div>
+            <CardDescription>
+              Opciones avanzadas de administración
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label>Modo mantenimiento</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Desactivar acceso temporal
+                  </p>
+                </div>
+                <Switch />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label>Registro abierto</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Permitir nuevos registros
+                  </p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label>Verificación de email</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Requerir verificación
+                  </p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label>Comentarios en cursos</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Permitir comentarios
+                  </p>
+                </div>
+                <Switch defaultChecked />
               </div>
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saving} size="lg">
+          {saving ? (
+            <>
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              Guardando...
+            </>
+          ) : (
+            <>
+              <Save className="mr-2 h-4 w-4" />
+              Guardar Cambios
+            </>
+          )}
+        </Button>
       </div>
     </div>
   )
