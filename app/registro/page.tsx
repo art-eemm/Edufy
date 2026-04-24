@@ -26,6 +26,7 @@ export default function RegistroPage() {
     confirmPassword: "",
   })
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,21 +44,36 @@ export default function RegistroPage() {
 
     setIsLoading(true)
 
-    // Simulate registration
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const apiFormData = new FormData()
 
-    // Create new user and store in localStorage
-    const newUser = {
-      id: Date.now().toString(),
-      name: formData.name,
-      email: formData.email,
-      role: "student" as const,
-      createdAt: new Date().toISOString().split("T")[0],
-      status: "active" as const,
+      apiFormData.append("nombre", formData.name)
+      apiFormData.append("email", formData.email)
+      apiFormData.append("password", formData.password)
+
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        body: apiFormData,
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || "Error al crear la cuenta. Inténtalo de nuevo.")
+        setIsLoading(false)
+        return
+      }
+
+      setSuccess(true)
+
+      setTimeout(() => {
+        router.push("/login")
+      }, 2000)
+    } catch (err) {
+      console.error("Error en el registro:", err)
+      setError("Ocurrió un error al conectar con el servidor.")
+      setIsLoading(false)
     }
-
-    localStorage.setItem("edufy_user", JSON.stringify(newUser))
-    router.push("/dashboard/estudiante")
   }
 
   return (
@@ -82,6 +98,11 @@ export default function RegistroPage() {
                 {error}
               </div>
             )}
+            {success && (
+              <div className="rounded-lg bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400">
+                Cuenta creada exitosamente. Redirigiendo al login...
+              </div>
+            )}
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="name">Nombre Completo</Label>
@@ -97,6 +118,7 @@ export default function RegistroPage() {
                   }
                   className="pl-10"
                   required
+                  disabled={isLoading || success}
                 />
               </div>
             </div>
@@ -115,6 +137,7 @@ export default function RegistroPage() {
                   }
                   className="pl-10"
                   required
+                  disabled={isLoading || success}
                 />
               </div>
             </div>
@@ -133,11 +156,13 @@ export default function RegistroPage() {
                   }
                   className="pr-10 pl-10"
                   required
+                  disabled={isLoading || success}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  disabled={isLoading || success}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -165,6 +190,7 @@ export default function RegistroPage() {
                   }
                   className="pl-10"
                   required
+                  disabled={isLoading || success}
                 />
               </div>
             </div>

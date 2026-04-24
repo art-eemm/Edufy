@@ -14,7 +14,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { users } from "@/lib/mock-data"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -29,25 +28,45 @@ export default function LoginPage() {
     setError("")
     setIsLoading(true)
 
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      })
 
-    const user = users.find((u) => u.email === email)
-    if (user) {
-      // Store user in localStorage for demo purposes
-      localStorage.setItem("edufy_user", JSON.stringify(user))
+      const data = await res.json()
 
-      // Redirect based on role
-      if (user.role === "admin") {
+      if (!res.ok) {
+        setError(data.error || "Credenciales inválidas. Inténtalo de nuevo.")
+        setIsLoading(false)
+        return
+      }
+
+      localStorage.setItem(
+        "edufy_user",
+        JSON.stringify({
+          email: data.user,
+          name: data.name,
+          role: data.role,
+          token: data.token,
+        })
+      )
+
+      const userRole = data.role?.toLowerCase() || ""
+
+      if (userRole === "admin") {
         router.push("/dashboard/admin")
-      } else if (user.role === "teacher") {
+      } else if (userRole === "profesor" || userRole === "teacher") {
         router.push("/dashboard/profesor")
       } else {
         router.push("/dashboard/estudiante")
       }
-    } else {
-      setError(
-        "Credenciales inválidas. Prueba con: admin@edufy.com, maria@edufy.com, o ana@edufy.com"
-      )
+    } catch (err) {
+      console.error("Error en la petición de login:", err)
+      setError("Ocurrió un error al conectar con el servidor.")
       setIsLoading(false)
     }
   }
