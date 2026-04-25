@@ -21,7 +21,6 @@ export async function POST(request:Request){
         }
 
         const formData = await request.formData();
-        //* OBTENEMOS LA INFORMACION DEL USUARIO
         const curso_id = formData.get("cursoId") as string
         const nombre = formData.get("nombre") as string
         const duracion = formData.get("duracion") as string
