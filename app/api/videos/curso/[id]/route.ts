@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseClient } from "@/lib/supabaseClient";
 
+//* OBTENER VIDEOS DE UN CURSO
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }){
     try{
         const { id } = await params;
@@ -20,7 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         }
 
         return NextResponse.json(data);
-        
+
     }catch(error){
         return NextResponse.json(
             { error: "Error al obtener videos" },
