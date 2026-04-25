@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseClient } from "@/lib/supabaseClient";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserFromToken } from "@/lib/auth";
 
 //* OBTENER EL PERFIL DEL USUARIO
@@ -51,6 +52,7 @@ export async function PUT(request: Request){
 
         const formData = await request.formData();
         const nombre_completo = formData.get("nombre") as string
+        const password = formData.get("password") as string | null
         const imagen_perfil = formData.get("imagen_perfil") as File | null
 
         //* OBTENEMOS LA IMAGEN ACTUAL DEL PERFIL
@@ -115,6 +117,20 @@ export async function PUT(request: Request){
                 { error: "Error al actualizar perfil" },
                 { status: 500 }
             );
+        }
+
+        //* ACTUALIZAMOS CONTRASEÑA
+        if (password && password.length >= 6) {
+            const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+                password: password
+            });
+
+            if (passwordError) {
+                return NextResponse.json(
+                    { error: passwordError.message },
+                    { status: 500 }
+                );
+            }
         }
 
         //* RESPUESTA EXITOSA
