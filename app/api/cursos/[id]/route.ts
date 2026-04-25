@@ -23,15 +23,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
                 estatus
                 )
             `)
-            /* .select(`
-                id_curso,
-                nombre,
-                descripcion,
-                fecha_creacion,
-                perfiles (
-                nombre_completo
-                )
-            `) */
             .eq("id_curso", id)
             .single();
 
