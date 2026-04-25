@@ -1,9 +1,9 @@
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
 
-export default function StudentLayout({
+export default function TeacherLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <DashboardLayout requiredRole="estudiante">{children}</DashboardLayout>
+  return <DashboardLayout requiredRole="profesor">{children}</DashboardLayout>
 }

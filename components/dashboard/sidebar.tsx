@@ -169,14 +169,14 @@ export function DashboardSidebar({ user }: SidebarProps) {
   const links =
     user.role === "admin"
       ? adminLinks
-      : user.role === "teacher"
+      : user.role === "profesor"
         ? teacherLinks
         : studentLinks
 
   const roleLabel =
     user.role === "admin"
       ? "Administrador"
-      : user.role === "teacher"
+      : user.role === "profesor"
         ? "Profesor"
         : "Estudiante"
 
