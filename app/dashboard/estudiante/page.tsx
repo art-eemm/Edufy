@@ -181,7 +181,7 @@ export default function StudentDashboardPage() {
                 </div>
               </div>
               <Button size="lg" asChild>
-                <Link href={`/curso/${cursoDestacado.id_curso}`}>
+                <Link href={`/curso/${cursoDestacado.id_curso}/aprender`}>
                   <BookOpen className="mr-2 h-4 w-4" />
                   Ver Curso
                 </Link>
@@ -212,7 +212,7 @@ export default function StudentDashboardPage() {
                 {cursos.map((curso) => (
                   <Link
                     key={curso.id_curso}
-                    href={`/curso/${curso.id_curso}`}
+                    href={`/curso/${curso.id_curso}/aprender`}
                     className="group flex flex-col justify-between rounded-lg border border-border p-5 transition-all hover:border-primary/50 hover:bg-muted/50"
                   >
                     <div>

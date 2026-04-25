@@ -1,254 +1,291 @@
 "use client"
 
-import { useState, use } from "react"
-import Link from "next/link"
+import { useEffect, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
 import {
+  PlayCircle,
   ArrowLeft,
-  Play,
-  CheckCircle,
-  Lock,
-  Menu,
-  X,
+  Loader2,
   ChevronRight,
+  Clock,
+  Info,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { cn } from "@/lib/utils"
-import { courses, lessons } from "@/lib/mock-data"
+import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 
-export default function CoursePlayerPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const resolvedParams = use(params)
-  const [currentLessonIndex, setCurrentLessonIndex] = useState(0)
-  const [completedLessons, setCompletedLessons] = useState<string[]>(["1", "2"])
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+interface Video {
+  id_video: number
+  titulo: string
+  url_video: string
+  orden: number
+  duracion: number
+}
 
-  const course = courses.find((c) => c.id === resolvedParams.id)
-  const courseLessons = lessons.filter((l) => l.courseId === resolvedParams.id)
-  const currentLesson = courseLessons[currentLessonIndex]
+interface CursoInfo {
+  id_curso: number | string
+  nombre: string
+  descripcion: string
+}
 
-  if (!course) {
+export default function AprenderCursoPage() {
+  const { id } = useParams()
+  const router = useRouter()
+
+  const [curso, setCurso] = useState<CursoInfo | null>(null)
+  const [videos, setVideos] = useState<Video[]>([])
+  const [videoActual, setVideoActual] = useState<Video | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    const fetchContenido = async () => {
+      const storedUser = localStorage.getItem("edufy_user")
+      if (!storedUser) {
+        router.push("/login")
+        return
+      }
+
+      const { token } = JSON.parse(storedUser)
+
+      try {
+        // Ejecutamos ambas peticiones al mismo tiempo para ahorrar tiempo
+        const [resVideos, resCursos] = await Promise.all([
+          fetch(`/api/videos/curso/${id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`/api/cursos`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ])
+
+        const videosData = await resVideos.json()
+        const cursosData = await resCursos.json()
+
+        if (!resVideos.ok) throw new Error("Error al cargar los videos")
+
+        // 1. Procesar Videos
+        if (Array.isArray(videosData) && videosData.length > 0) {
+          // Ya vienen filtrados por estatus: 1 desde tu API
+          setVideos(videosData)
+          setVideoActual(videosData[0])
+        }
+
+        // 2. Procesar Información del Curso
+        if (Array.isArray(cursosData)) {
+          const info = cursosData.find((c) => String(c.id_curso) === String(id))
+          if (info) {
+            setCurso({
+              id_curso: info.id_curso,
+              nombre: info.nombre,
+              descripcion: info.descripcion,
+            })
+          }
+        }
+      } catch (err: any) {
+        console.error(err)
+        setError("No pudimos cargar el contenido del curso.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (id) fetchContenido()
+  }, [id, router])
+
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">
-            Curso no encontrado
-          </h1>
-          <Button asChild className="mt-4">
-            <Link href="/dashboard/estudiante">Volver al Dashboard</Link>
-          </Button>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="animate-pulse text-sm text-muted-foreground">
+            Preparando tus lecciones...
+          </p>
         </div>
       </div>
     )
   }
 
-  const progress =
-    courseLessons.length > 0
-      ? Math.round((completedLessons.length / courseLessons.length) * 100)
-      : 0
-
-  const handleLessonComplete = () => {
-    if (currentLesson && !completedLessons.includes(currentLesson.id)) {
-      setCompletedLessons([...completedLessons, currentLesson.id])
-    }
-  }
-
-  const handleNextLesson = () => {
-    if (currentLessonIndex < courseLessons.length - 1) {
-      handleLessonComplete()
-      setCurrentLessonIndex(currentLessonIndex + 1)
-    }
+  if (error || !curso) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-4">
+        <div className="mb-4 rounded-full bg-destructive/10 p-4">
+          <Info className="h-8 w-8 text-destructive" />
+        </div>
+        <h2 className="text-xl font-bold">Ups, algo salió mal</h2>
+        <p className="mt-2 max-w-xs text-center text-muted-foreground">
+          {error || "El curso no está disponible."}
+        </p>
+        <Button
+          className="mt-6"
+          onClick={() => router.push("/dashboard/estudiante")}
+        >
+          Volver al catálogo
+        </Button>
+      </div>
+    )
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Mobile sidebar toggle */}
-      <button
-        className="fixed top-4 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-card shadow-lg lg:hidden"
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-      >
-        {isSidebarOpen ? (
-          <X className="h-5 w-5" />
-        ) : (
-          <Menu className="h-5 w-5" />
-        )}
-      </button>
-
-      {/* Mobile overlay */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-80 flex-col border-r border-border bg-card transition-transform lg:translate-x-0",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        <div className="flex h-16 items-center gap-3 border-b border-border px-4">
-          <Button variant="ghost" size="icon" asChild>
+    <div className="flex min-h-screen flex-col bg-background">
+      {/* Barra Superior */}
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
+        <div className="flex h-16 items-center px-4 lg:px-8">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="mr-4 hover:bg-primary/10"
+          >
             <Link href="/dashboard/estudiante">
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Salir del curso
             </Link>
           </Button>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-foreground">
-              {course.title}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {course.teacherName}
+          <Separator orientation="vertical" className="mr-4 h-6" />
+          <div className="flex flex-col overflow-hidden">
+            <h1 className="truncate text-sm font-bold md:text-base">
+              {curso.nombre}
+            </h1>
+            <p className="truncate text-xs text-muted-foreground">
+              Estás viendo: {videoActual?.titulo || "Cargando..."}
             </p>
           </div>
         </div>
+      </header>
 
-        <div className="border-b border-border p-4">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Progreso del curso</span>
-            <span className="font-medium text-foreground">{progress}%</span>
+      <main className="flex flex-1 flex-col lg:flex-row">
+        {/* Reproductor y Detalles */}
+        <div className="flex-1 overflow-y-auto bg-black/5 p-4 lg:p-8">
+          <div className="mx-auto max-w-5xl">
+            {videoActual ? (
+              <>
+                <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-2xl ring-1 ring-white/10">
+                  <video
+                    key={videoActual.id_video} // Importante para que React reinicie el reproductor al cambiar de video
+                    src={videoActual.url_video}
+                    className="h-full w-full outline-none"
+                    controls
+                    autoPlay
+                    controlsList="nodownload"
+                  />
+                </div>
+
+                <div className="mt-8 flex flex-col gap-4 rounded-2xl border bg-card p-6 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <h2 className="text-2xl font-bold text-foreground">
+                      {videoActual.titulo}
+                    </h2>
+                    <Badge variant="secondary" className="px-3 py-1">
+                      Lección {videoActual.orden}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-4 w-4" />
+                      <span>
+                        {Math.floor(videoActual.duracion / 60)} min{" "}
+                        {videoActual.duracion % 60} seg
+                      </span>
+                    </div>
+                  </div>
+
+                  <Separator className="my-2" />
+
+                  <div>
+                    <h3 className="mb-2 font-semibold">Acerca de este curso</h3>
+                    <p className="leading-relaxed text-muted-foreground">
+                      {curso.descripcion}
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex h-[500px] flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-card/50">
+                <PlayCircle className="mb-4 h-16 w-16 text-muted-foreground/20" />
+                <p className="text-lg font-medium text-muted-foreground">
+                  Este curso aún no tiene lecciones publicadas.
+                </p>
+              </div>
+            )}
           </div>
-          <Progress value={progress} className="mt-2 h-2" />
         </div>
 
-        <ScrollArea className="flex-1">
-          <div className="p-4">
-            <h3 className="mb-3 text-sm font-semibold text-foreground">
-              Contenido del Curso
-            </h3>
-            <div className="flex flex-col gap-1">
-              {courseLessons.map((lesson, index) => {
-                const isCompleted = completedLessons.includes(lesson.id)
-                const isCurrent = index === currentLessonIndex
-                const isLocked = index > completedLessons.length
+        {/* Lista de Lecciones (Sidebar derecha) */}
+        <aside className="w-full border-t bg-card lg:w-[400px] lg:border-t-0 lg:border-l">
+          <div className="flex h-full flex-col">
+            <div className="p-6">
+              <h3 className="text-lg font-bold">Contenido del curso</h3>
+              <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
+                <span>{videos.length} lecciones</span>
+                <span>
+                  {Math.round(
+                    videos.reduce((acc, v) => acc + v.duracion, 0) / 60
+                  )}{" "}
+                  min total
+                </span>
+              </div>
+            </div>
 
-                return (
+            <Separator />
+
+            <ScrollArea className="flex-1">
+              <div className="flex flex-col">
+                {videos.map((video, index) => (
                   <button
-                    key={lesson.id}
-                    onClick={() => {
-                      if (!isLocked) {
-                        setCurrentLessonIndex(index)
-                        setIsSidebarOpen(false)
-                      }
-                    }}
-                    disabled={isLocked}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors",
-                      isCurrent
-                        ? "bg-primary/10 text-primary"
-                        : isLocked
-                          ? "cursor-not-allowed opacity-50"
-                          : "text-foreground hover:bg-muted"
-                    )}
+                    key={video.id_video}
+                    onClick={() => setVideoActual(video)}
+                    className={`group flex items-center gap-4 border-b p-5 text-left transition-all hover:bg-primary/5 ${
+                      videoActual?.id_video === video.id_video
+                        ? "border-l-4 border-l-primary bg-primary/10"
+                        : "border-l-4 border-l-transparent"
+                    }`}
                   >
                     <div
-                      className={cn(
-                        "flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium",
-                        isCompleted
-                          ? "bg-success text-success-foreground"
-                          : isCurrent
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground"
-                      )}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-xs font-bold transition-colors ${
+                        videoActual?.id_video === video.id_video
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground"
+                      }`}
                     >
-                      {isCompleted ? (
-                        <CheckCircle className="h-4 w-4" />
-                      ) : isLocked ? (
-                        <Lock className="h-4 w-4" />
-                      ) : (
-                        index + 1
-                      )}
+                      {index + 1}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {lesson.title}
+
+                    <div className="flex-1 overflow-hidden">
+                      <p
+                        className={`truncate text-sm font-semibold transition-colors ${
+                          videoActual?.id_video === video.id_video
+                            ? "text-primary"
+                            : "text-foreground group-hover:text-primary"
+                        }`}
+                      >
+                        {video.titulo}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {lesson.duration}
-                      </p>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1 italic">
+                          <PlayCircle className="h-3 w-3" />
+                          Video
+                        </span>
+                        <span>•</span>
+                        <span>
+                          {Math.floor(video.duracion / 60)}:
+                          {String(video.duracion % 60).padStart(2, "0")}
+                        </span>
+                      </div>
                     </div>
+
+                    {videoActual?.id_video === video.id_video && (
+                      <ChevronRight className="h-5 w-5 animate-pulse text-primary" />
+                    )}
                   </button>
-                )
-              })}
-            </div>
+                ))}
+              </div>
+            </ScrollArea>
           </div>
-        </ScrollArea>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 lg:pl-80">
-        <div className="flex min-h-screen flex-col">
-          {/* Video player area */}
-          <div className="relative aspect-video w-full bg-black">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-4 text-white">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20">
-                  <Play className="h-10 w-10 fill-white" />
-                </div>
-                <p className="text-lg font-medium">
-                  {currentLesson?.title || "Selecciona una lección"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Lesson info */}
-          <div className="flex-1 p-6 pt-20 lg:p-8 lg:pt-8">
-            <div className="mx-auto max-w-4xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-primary">
-                    Lección {currentLessonIndex + 1} de {courseLessons.length}
-                  </p>
-                  <h1 className="mt-2 text-2xl font-bold text-foreground">
-                    {currentLesson?.title || "Sin título"}
-                  </h1>
-                  <p className="mt-2 text-muted-foreground">
-                    {currentLesson?.description || "Sin descripción"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-8 flex items-center gap-4">
-                <Button
-                  variant="outline"
-                  onClick={handleLessonComplete}
-                  disabled={completedLessons.includes(currentLesson?.id || "")}
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  {completedLessons.includes(currentLesson?.id || "")
-                    ? "Completada"
-                    : "Marcar como completada"}
-                </Button>
-                {currentLessonIndex < courseLessons.length - 1 && (
-                  <Button onClick={handleNextLesson}>
-                    Siguiente Lección
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-
-              <div className="mt-8 rounded-xl border border-border bg-card p-6">
-                <h2 className="text-lg font-semibold text-foreground">
-                  Sobre esta lección
-                </h2>
-                <p className="mt-2 leading-relaxed text-muted-foreground">
-                  {currentLesson?.description ||
-                    "No hay descripción disponible para esta lección."}{" "}
-                  Esta lección forma parte del curso &quot;{course.title}&quot;
-                  impartido por {course.teacherName}. Al completar todas las
-                  lecciones recibirás un certificado de finalización.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        </aside>
       </main>
     </div>
   )
