@@ -11,14 +11,27 @@ import {
   Info,
   Lock,
   CheckCircle,
+  Star, // <-- Importamos el ícono de estrella
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress" // Usaremos el componente de progreso
+import { Progress } from "@/components/ui/progress"
 import { toast } from "sonner"
 import Link from "next/link"
+
+// Nuevos componentes de UI importados para el Modal y Textarea
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 interface Video {
   id_video: number
@@ -42,16 +55,20 @@ export default function AprenderCursoPage() {
   const [videos, setVideos] = useState<Video[]>([])
   const [videoActual, setVideoActual] = useState<Video | null>(null)
 
-  // Nuevos estados para progreso
   const [progreso, setProgreso] = useState({
     total: 0,
     completados: 0,
     porcentaje: 0,
   })
   const [isCargandoVideo, setIsCargandoVideo] = useState(false)
-
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+
+  // --- NUEVOS ESTADOS PARA LA CALIFICACIÓN ---
+  const [isRatingModalOpen, setIsRatingModalOpen] = useState(false)
+  const [estrellas, setEstrellas] = useState(0)
+  const [comentario, setComentario] = useState("")
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false)
 
   const fetchProgresoCurso = async (token: string) => {
     try {
@@ -93,7 +110,7 @@ export default function AprenderCursoPage() {
 
         if (Array.isArray(videosData) && videosData.length > 0) {
           setVideos(videosData)
-          setVideoActual(videosData[0]) // Por defecto cargamos el primero
+          setVideoActual(videosData[0])
         }
 
         if (Array.isArray(cursosData)) {
@@ -107,7 +124,6 @@ export default function AprenderCursoPage() {
           }
         }
 
-        // Cargar el progreso inicial
         await fetchProgresoCurso(token)
       } catch (err: any) {
         setError("No pudimos cargar el contenido del curso.")
@@ -118,7 +134,6 @@ export default function AprenderCursoPage() {
     if (id) fetchContenido()
   }, [id, router])
 
-  // Función para validar si se puede ver un video al hacer clic en la lista
   const handleSeleccionarVideo = (video: Video) => {
     if (video.id_video === videoActual?.id_video) return
 
@@ -162,16 +177,58 @@ export default function AprenderCursoPage() {
           setVideoActual(siguienteVideo)
           toast.info(`Reproduciendo siguiente: ${siguienteVideo.titulo}`)
         } else {
+          // --- AQUÍ ABRIMOS EL MODAL AL TERMINAR EL CURSO ---
           toast.success(
-            "¡Felicidades! Has completado todos los videos del curso.",
-            {
-              description: "Ya puedes descargar tu certificado en el panel.",
-            }
+            "¡Felicidades! Has completado todos los videos del curso."
           )
+          setIsRatingModalOpen(true)
         }
       }
     } catch (error) {
       console.error("Error al marcar video", error)
+    }
+  }
+
+  // --- FUNCIÓN PARA ENVIAR LA CALIFICACIÓN ---
+  const handleEnviarCalificacion = async () => {
+    if (estrellas === 0) {
+      toast.error("Por favor selecciona una calificación de estrellas.")
+      return
+    }
+
+    setIsSubmittingRating(true)
+    const { token } = JSON.parse(localStorage.getItem("edufy_user")!)
+
+    try {
+      const res = await fetch("/api/calificaciones", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id_curso: Number(id),
+          estrellas,
+          comentario,
+        }),
+      })
+
+      if (res.ok) {
+        toast.success("¡Gracias por tu opinión!", {
+          description: "Ya puedes descargar tu certificado en el panel.",
+        })
+        setIsRatingModalOpen(false) // Cerramos el modal
+
+        // Opcional: Podrías redirigirlo al dashboard de certificados aquí
+        // router.push("/dashboard/estudiante/certificados")
+      } else {
+        const data = await res.json()
+        toast.error(data.error || "Error al enviar la calificación")
+      }
+    } catch (error) {
+      toast.error("Error de conexión")
+    } finally {
+      setIsSubmittingRating(false)
     }
   }
 
@@ -213,7 +270,6 @@ export default function AprenderCursoPage() {
             </h1>
           </div>
 
-          {/* Barra de progreso en el header */}
           <div className="hidden w-64 items-center gap-3 md:flex">
             <Progress value={progreso.porcentaje} className="h-2" />
             <span className="text-xs font-medium whitespace-nowrap text-muted-foreground">
@@ -241,7 +297,7 @@ export default function AprenderCursoPage() {
                     controls
                     autoPlay
                     controlsList="nodownload"
-                    onEnded={handleVideoTerminado} // <--- MAGIA: Escucha el final del video
+                    onEnded={handleVideoTerminado}
                   />
                 </div>
 
@@ -289,7 +345,6 @@ export default function AprenderCursoPage() {
               <div className="flex flex-col">
                 {videos.map((video, index) => {
                   const isActual = videoActual?.id_video === video.id_video
-                  // Si su orden es menor o igual a las completadas + 1, asumimos que está desbloqueado visualmente
                   const isDesbloqueado =
                     video.orden <= progreso.completados + 1 ||
                     progreso.porcentaje === 100
@@ -349,6 +404,70 @@ export default function AprenderCursoPage() {
           </div>
         </aside>
       </main>
+
+      {/* --- MODAL PARA CALIFICAR EL CURSO --- */}
+      <Dialog open={isRatingModalOpen} onOpenChange={setIsRatingModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader className="text-center">
+            <DialogTitle className="text-2xl text-primary">
+              ¡Felicidades!
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              Has terminado el curso. Ayuda a la comunidad dejando tu opinión.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center gap-6 py-6">
+            <div className="flex justify-center gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setEstrellas(star)}
+                  className="focus:outline-none"
+                >
+                  <Star
+                    className={`h-10 w-10 transition-colors ${
+                      star <= estrellas
+                        ? "fill-yellow-400 text-yellow-400"
+                        : "text-muted-foreground hover:text-yellow-200"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+
+            <div className="w-full space-y-2">
+              <Label htmlFor="comentario">Comentario (Opcional)</Label>
+              <Textarea
+                id="comentario"
+                placeholder="¿Qué te pareció el curso? ¿Fue claro el profesor?"
+                value={comentario}
+                onChange={(e) => setComentario(e.target.value)}
+                className="resize-none"
+                rows={4}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              className="w-full"
+              onClick={handleEnviarCalificacion}
+              disabled={isSubmittingRating}
+            >
+              {isSubmittingRating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                "Enviar Calificación"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
