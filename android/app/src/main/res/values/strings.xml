@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Edufy</string>
+    <string name="title_activity_main">Edufy</string>
+    <string name="package_name">com.edufy.app</string>
+    <string name="custom_url_scheme">com.edufy.app</string>
+</resources>

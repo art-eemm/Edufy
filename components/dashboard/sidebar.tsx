@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import type { User } from "@/lib/types"
+import { Capacitor } from "@capacitor/core"
 
 interface SidebarProps {
   user: User
@@ -182,14 +183,17 @@ export function DashboardSidebar({ user }: SidebarProps) {
 
   const handleLogout = () => {
     localStorage.removeItem("edufy_user")
-    router.push("/")
+    if (Capacitor.isNativePlatform()) {
+      window.location.href = "/login"
+    } else {
+      router.push("/")
+    }
   }
 
   return (
     <>
-      {/* Mobile toggle button */}
       <button
-        className="fixed top-4 left-4 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-sidebar text-sidebar-foreground shadow-lg lg:hidden"
+        className="fixed top-4 right-4 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-sidebar text-sidebar-foreground shadow-lg lg:hidden"
         onClick={() => setIsMobileOpen(!isMobileOpen)}
       >
         {isMobileOpen ? (

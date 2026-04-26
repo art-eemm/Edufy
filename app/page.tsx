@@ -1,3 +1,5 @@
+"use client"
+
 import { Navbar } from "@/components/landing/navbar"
 import { Hero } from "@/components/landing/hero"
 import { FeaturedCourses } from "@/components/landing/featured-courses"

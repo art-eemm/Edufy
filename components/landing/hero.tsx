@@ -1,5 +1,13 @@
 import Link from "next/link"
-import { ArrowRight, Play, Users, BookOpen, Award, Section } from "lucide-react"
+import {
+  ArrowRight,
+  Play,
+  Users,
+  BookOpen,
+  Award,
+  Section,
+  Download,
+} from "lucide-react"
 import { Button } from "../ui/button"
 
 export function Hero() {
@@ -33,16 +41,11 @@ export function Hero() {
                 Comenzar Gratis <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              asChild
-              className="w-full sm:w-auto"
-            >
-              <Link href="#cursos">
-                <Play className="mr-2 h-4 w-4" />
-                Ver Cursos
-              </Link>
+            <Button variant="outline" size="lg" asChild>
+              <a href="/edufy.apk" download="Edufy_App.apk">
+                <Download className="mr-2 h-4 w-4" />
+                Descargar para Android
+              </a>
             </Button>
           </div>
         </div>
