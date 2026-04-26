@@ -1,30 +1,33 @@
 import { NextResponse } from "next/server"
 import { getUserFromToken, hasRole } from "@/lib/auth"
-import { supabaseClient } from "@/lib/supabaseClient"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 
-//* OBTENEMOS TODOS LOS CURSOS DISPONIBLES (VISTA PARA ALUMNOS)
-export async function GET() {
+//* OBTENEMOS TODOS LOS CURSOS DEL PROFESOR LOGUEADO (Activos e Inactivos)
+export async function GET(request: Request) {
   try {
-    const { data, error } = await supabaseClient
+    const user = await getUserFromToken(request)
+    if (!user) {
+      return NextResponse.json(
+        { error: "Usuario no autenticado" },
+        { status: 401 }
+      )
+    }
+
+    const { data, error } = await supabaseAdmin
       .from("cursos")
       .select(
         `
-            id_curso,
-            nombre,
-            descripcion,
-            fecha_creacion,
-            estatus,
-            perfiles (
-                nombre_completo
-            )
-        `
+          id_curso,
+          nombre,
+          descripcion,
+          fecha_creacion,
+          estatus
+      `
       )
-      .eq("estatus", 1)
+      .eq("id_profesor", user.id)
+      .order("fecha_creacion", { ascending: false })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+    if (error) throw error
 
     return NextResponse.json(data)
   } catch (error) {
@@ -55,7 +58,8 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { nombre, descripcion } = body
+    const { nombre, descripcion, estatus } = body
+
     if (!nombre || !descripcion) {
       return NextResponse.json(
         { error: "Nombre y descripción son obligatorios" },
@@ -63,25 +67,22 @@ export async function POST(request: Request) {
       )
     }
 
-    const { error: cursoError } = await supabaseAdmin
+    const { data: cursoCreado, error: cursoError } = await supabaseAdmin
       .from("cursos")
       .insert([
         {
           nombre: nombre,
           descripcion: descripcion,
           id_profesor: user.id,
+          estatus: estatus !== undefined ? estatus : 1,
         },
       ])
+      .select()
       .single()
-    if (cursoError) {
-      return NextResponse.json({ error: cursoError.message }, { status: 500 })
-    }
 
-    //* RESPUESTA EXITOSA
-    return NextResponse.json(
-      { message: "Curso creado correctamente" },
-      { status: 201 }
-    )
+    if (cursoError) throw cursoError
+
+    return NextResponse.json(cursoCreado, { status: 201 })
   } catch (error) {
     return NextResponse.json(
       { error: "Error al crear el curso" },

@@ -21,18 +21,18 @@ export async function GET(
                 id,
                 estrellas,
                 comentario,
-                created_at,
+                fecha,
                 perfiles ( nombre_completo )
             `
       )
       .eq("id_curso", id)
-      .order("created_at", { ascending: false })
+      .order("fecha", { ascending: false })
 
     if (error) throw error
 
     return NextResponse.json(data)
   } catch (error) {
-    console.error(error)
+    console.error("Error al obtener calificaciones:", error)
     return NextResponse.json(
       { error: "Error al obtener calificaciones del curso" },
       { status: 500 }
