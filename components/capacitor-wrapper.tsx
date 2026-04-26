@@ -1,21 +1,17 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Capacitor } from "@capacitor/core"
 import { App } from "@capacitor/app"
 import { StatusBar, Style } from "@capacitor/status-bar"
 
 export function CapacitorWrapper({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const pathname = usePathname()
-  const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
-    const isNative = Capacitor.isNativePlatform()
-    setIsMobile(isNative)
-
-    if (isNative) {
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {})
       StatusBar.setStyle({ style: Style.Dark }).catch(() => {})
 
       const backButtonListener = App.addListener("backButton", () => {
@@ -37,9 +33,7 @@ export function CapacitorWrapper({ children }: { children: React.ReactNode }) {
   }, [router])
 
   return (
-    <div
-      className={isMobile ? "safe-area-layout bg-background" : "min-h-screen"}
-    >
+    <div className="safe-area-layout min-h-screen bg-background">
       {children}
     </div>
   )
