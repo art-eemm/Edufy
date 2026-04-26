@@ -29,7 +29,23 @@ import { Footer } from "@/components/landing/footer"
 const categories = ["Desarrollo", "Diseño", "Negocios", "General"]
 
 export default function CursosPage() {
-  const [courses, setCourses] = useState<any[]>([])
+  type CourseLevel = "principiante" | "intermedio" | "avanzado"
+
+  interface Course {
+    id: string
+    title: string
+    description: string
+    teacherName: string
+    createdAt: string
+    category: string
+    level: CourseLevel
+    duration: string
+    studentsCount: number
+    rating: number
+    price: number
+  }
+
+  const [courses, setCourses] = useState<Course[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   const [searchTerm, setSearchTerm] = useState("")
@@ -52,7 +68,7 @@ export default function CursosPage() {
             createdAt: c.fecha_creacion,
             // Valores por defecto para mantener el diseño visual intacto
             category: "General",
-            level: "principiante",
+            level: "principiante" as CourseLevel,
             duration: "Por definir",
             studentsCount: 0,
             rating: 5.0,
@@ -98,7 +114,7 @@ export default function CursosPage() {
       }
     })
 
-  const levelColors = {
+  const levelColors: Record<CourseLevel, string> = {
     principiante: "bg-success/70 border-success/20",
     intermedio: "bg-warning/70 border-warning/20",
     avanzado: "bg-destructive/70 border-destructive/20",

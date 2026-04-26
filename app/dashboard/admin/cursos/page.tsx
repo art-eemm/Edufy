@@ -1,181 +1,212 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Search,
-  Filter,
   MoreHorizontal,
-  Eye,
-  Edit,
-  Trash2,
-  Star,
-  Users,
+  Plus,
+  Loader2,
   BookOpen,
+  ExternalLink,
+  Trash2,
+  Edit,
 } from "lucide-react"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { courses, categories } from "@/lib/mock-data"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card"
+import { toast } from "sonner"
+import Link from "next/link"
 
-export default function AdminCoursesPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState<string>("all")
+interface Curso {
+  id_curso: number
+  nombre: string
+  descripcion: string
+  fecha_creacion: string
+  perfiles: {
+    nombre_completo: string
+  }
+}
 
-  const filteredCourses = courses.filter((course) => {
-    const matchesSearch =
-      course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      course.teacherName.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCategory =
-      categoryFilter === "all" || course.category === categoryFilter
-    return matchesSearch && matchesCategory
-  })
+export default function AdminCursosPage() {
+  const [cursos, setCursos] = useState<Curso[]>([])
+  const [busqueda, setBusqueda] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
 
-  const statusColors = {
-    published: "bg-success/70",
-    draft: "bg-warning/70",
-    archived: "bg-muted text-muted-foreground",
+  useEffect(() => {
+    async function fetchCursos() {
+      const storedUser = localStorage.getItem("edufy_user")
+      if (!storedUser) return
+      const { token } = JSON.parse(storedUser)
+
+      try {
+        const response = await fetch("/api/admin/cursos", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await response.json()
+
+        if (response.ok) {
+          setCursos(data)
+        } else {
+          toast.error(data.error || "Error al cargar los cursos")
+        }
+      } catch (error) {
+        toast.error("Error de conexión")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCursos()
+  }, [])
+
+  const cursosFiltrados = cursos.filter(
+    (c) =>
+      c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+      c.perfiles?.nombre_completo.toLowerCase().includes(busqueda.toLowerCase())
+  )
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">
-          Gestión de Cursos
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          Administra todos los cursos de la plataforma
-        </p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Gestión de Cursos
+          </h1>
+          <p className="text-muted-foreground">
+            Visualiza y administra todos los cursos disponibles en la
+            plataforma.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/dashboard/profesor/crear">
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo Curso
+          </Link>
+        </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Cursos</CardTitle>
-          <CardDescription>
-            Total: {courses.length} cursos en la plataforma
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <CardTitle>Catálogo General</CardTitle>
+              <CardDescription>
+                Hay {cursos.length} cursos registrados en total.
+              </CardDescription>
+            </div>
+            <div className="relative w-full md:w-72">
+              <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por título o instructor..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                placeholder="Buscar curso o profesor..."
+                className="pl-8"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
               />
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <Filter className="mr-2 h-4 w-4" />
-                  {categoryFilter === "all"
-                    ? "Todas las categorías"
-                    : categoryFilter}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => setCategoryFilter("all")}>
-                  Todas
-                </DropdownMenuItem>
-                {categories.map((cat) => (
-                  <DropdownMenuItem
-                    key={cat}
-                    onClick={() => setCategoryFilter(cat)}
-                  >
-                    {cat}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredCourses.map((course) => (
-              <Card key={course.id} className="overflow-hidden">
-                <div className="relative aspect-video bg-muted">
-                  <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-primary/20 to-accent/20">
-                    <BookOpen className="h-12 w-12 text-primary/50" />
-                  </div>
-                  <Badge
-                    className={`absolute top-3 right-3 ${statusColors[course.status]}`}
-                  >
-                    {course.status === "published"
-                      ? "Publicado"
-                      : course.status === "draft"
-                        ? "Borrador"
-                        : "Archivado"}
-                  </Badge>
-                </div>
-                <CardContent className="p-4">
-                  <p className="text-xs font-medium text-primary">
-                    {course.category}
-                  </p>
-                  <h3 className="mt-1 line-clamp-1 font-semibold text-foreground">
-                    {course.title}
-                  </h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {course.teacherName}
-                  </p>
-
-                  <div className="mt-4 flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-3 text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        {course.studentsCount}
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Curso</TableHead>
+                <TableHead>Instructor</TableHead>
+                <TableHead className="hidden md:table-cell">
+                  Fecha de Creación
+                </TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {cursosFiltrados.length > 0 ? (
+                cursosFiltrados.map((curso) => (
+                  <TableRow key={curso.id_curso} className="group">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                          <BookOpen className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex flex-col overflow-hidden">
+                          <span className="truncate font-semibold">
+                            {curso.nombre}
+                          </span>
+                          <span className="line-clamp-1 text-xs text-muted-foreground">
+                            {curso.descripcion}
+                          </span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">
+                        {curso.perfiles?.nombre_completo || "Sin asignar"}
                       </span>
-                      <span className="flex items-center gap-1">
-                        <Star className="h-4 w-4 fill-chart-5 text-chart-5" />
-                        {course.rating}
-                      </span>
-                    </div>
-                    <p className="font-bold text-primary">${course.price}</p>
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-2">
-                    <Button variant={"outline"} size={"sm"} className="flex-1">
-                      <Eye className="mr-1 h-3 w-3" />
-                      Ver
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Eliminar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    </TableCell>
+                    <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
+                      {new Date(curso.fecha_creacion).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuLabel>Opciones</DropdownMenuLabel>
+                          <DropdownMenuItem asChild>
+                            <Link href={`/curso/${curso.id_curso}/aprender`}>
+                              <ExternalLink className="mr-2 h-4 w-4" /> Ver
+                              contenido
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-destructive focus:text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" /> Eliminar curso
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center">
+                    No se encontraron cursos en la base de datos.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

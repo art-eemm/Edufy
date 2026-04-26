@@ -30,7 +30,7 @@ export function DashboardLayout({
     if (parsedUser.role !== requiredRole) {
       if (parsedUser.role === "admin") {
         router.push("/dashboard/admin")
-      } else if (parsedUser.role === "teacher") {
+      } else if (parsedUser.role === "profesor") {
         router.push("/dashboard/profesor")
       } else {
         router.push("/dashboard/estudiante")

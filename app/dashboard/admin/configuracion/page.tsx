@@ -1,293 +1,295 @@
 "use client"
 
-import { useState } from "react"
-import { useTheme } from "next-themes"
-import { Save, User, Lock, Bell, Palette, Shield } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import {
+  User,
+  Mail,
+  Loader2,
+  Save,
+  Camera,
+  Lock,
+  KeyRound,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+} from "lucide-react"
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { toast } from "sonner"
 
-export default function ConfiguracionPage() {
-  const { theme, setTheme } = useTheme()
-  const [saving, setSaving] = useState(false)
-  const [profile, setProfile] = useState({
-    name: "Admin Principal",
-    email: "admin@edufy.com",
-  })
-  const [notifications, setNotifications] = useState({
-    email: true,
-    push: true,
-    marketing: false,
-    newUsers: true,
-    newCourses: true,
-  })
-  const [showSucces, setShowSuccess] = useState(false)
+export default function AdminConfigPage() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const handleSave = async () => {
-    setSaving(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setSaving(false)
-    setShowSuccess(true)
-    setTimeout(() => setShowSuccess(false), 3000)
+  const [nombre, setNombre] = useState("")
+  const [email, setEmail] = useState("")
+
+  const [previewUrl, setPreviewUrl] = useState("")
+  const [archivoImagen, setArchivoImagen] = useState<File | null>(null)
+
+  const [showPass, setShowPass] = useState(false)
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+
+  useEffect(() => {
+    async function fetchProfile() {
+      const storedUserStr = localStorage.getItem("edufy_user")
+      if (!storedUserStr) {
+        router.push("/login")
+        return
+      }
+
+      const { token, email: userEmail } = JSON.parse(storedUserStr)
+      setEmail(userEmail)
+
+      try {
+        const response = await fetch("/api/usuarios/perfil", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        })
+        const data = await response.json()
+
+        if (response.ok) {
+          setNombre(data.nombre_completo || "")
+          setPreviewUrl(data.imagen_perfil || "")
+        }
+      } catch (error) {
+        toast.error("Error al cargar los datos de configuración")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchProfile()
+  }, [router])
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setArchivoImagen(file)
+      setPreviewUrl(URL.createObjectURL(file))
+    }
   }
 
+  const handleSaveAll = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (newPassword && newPassword !== confirmPassword) {
+      return toast.error("Las contraseñas no coinciden")
+    }
+    if (newPassword && newPassword.length < 6) {
+      return toast.error("La contraseña debe tener al menos 6 caracteres")
+    }
+
+    setIsSaving(true)
+    const storedUserStr = localStorage.getItem("edufy_user")
+    const { token } = JSON.parse(storedUserStr!)
+
+    try {
+      const formData = new FormData()
+      formData.append("nombre", nombre)
+      if (archivoImagen) formData.append("imagen_perfil", archivoImagen)
+      if (newPassword) formData.append("password", newPassword)
+
+      const response = await fetch("/api/usuarios/perfil", {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        toast.success("Configuración de administrador actualizada")
+        setNewPassword("")
+        setConfirmPassword("")
+        setArchivoImagen(null)
+
+        // Actualizamos el storage local para que los cambios se vean en el Sidebar
+        const updatedUser = {
+          ...JSON.parse(storedUserStr!),
+          name: nombre,
+          imagen_perfil: result.imagen_perfil,
+        }
+        localStorage.setItem("edufy_user", JSON.stringify(updatedUser))
+        window.dispatchEvent(new Event("storage"))
+      } else {
+        toast.error(result.error || "Error al guardar los cambios")
+      }
+    } catch (error) {
+      toast.error("Fallo de conexión al servidor")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading)
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="animate-spin text-primary" />
+      </div>
+    )
+
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Configuración</h1>
-        <p className="mt-1 text-muted-foreground">
-          Administra tu perfil y preferencias
+    <div className="mx-auto max-w-5xl space-y-8 pb-10">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight">
+          Configuración del Sistema
+        </h1>
+        <p className="text-muted-foreground">
+          Gestiona tus credenciales de administrador y apariencia de perfil.
         </p>
       </div>
 
-      {showSucces && (
-        <div className="rounded-lg border border-success/20 bg-success/10 p-4 text-success">
-          Cambios guardados correctamente
+      <form
+        onSubmit={handleSaveAll}
+        className="grid gap-8 lg:grid-cols-[280px_1fr]"
+      >
+        {/* Lado Izquierdo: Foto */}
+        <aside className="space-y-6">
+          <Card>
+            <CardContent className="flex flex-col items-center pt-8">
+              <div className="group relative">
+                <Avatar className="h-40 w-40 border-4 border-primary/10 shadow-xl">
+                  <AvatarImage src={previewUrl} className="object-cover" />
+                  <AvatarFallback className="bg-primary/5 text-3xl text-primary">
+                    <User className="h-12 w-12" />
+                  </AvatarFallback>
+                </Avatar>
+                <label className="absolute right-2 bottom-2 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-110 active:scale-95">
+                  <Camera className="h-5 w-5" />
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                  />
+                </label>
+              </div>
+              <div className="mt-6 text-center">
+                <Badge
+                  variant="default"
+                  className="mb-2 border-0 bg-primary/10 text-primary hover:bg-primary/10"
+                >
+                  <ShieldCheck className="mr-1 h-3 w-3" /> Administrador
+                </Badge>
+                <h2 className="line-clamp-1 text-lg font-bold">
+                  {nombre || "Admin"}
+                </h2>
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
+
+        {/* Lado Derecho: Formularios */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Información de Cuenta</CardTitle>
+              <CardDescription>
+                Datos básicos de identificación en la plataforma.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="nombre">Nombre de Administrador</Label>
+                <div className="relative">
+                  <User className="absolute top-3 left-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="nombre"
+                    className="pl-10"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Correo Electrónico Corporativo</Label>
+                <div className="flex items-center gap-3 rounded-md border bg-muted/50 px-4 py-2 text-muted-foreground">
+                  <Mail className="h-4 w-4" />
+                  <span className="text-sm">{email}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound className="h-5 w-5 text-primary" />
+                Seguridad de Acceso
+              </CardTitle>
+              <CardDescription>
+                Actualiza tu contraseña periódicamente para mantener la
+                seguridad.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Nueva Contraseña</Label>
+                  <div className="relative">
+                    <Lock className="absolute top-3 left-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type={showPass ? "text" : "password"}
+                      className="pr-10 pl-10"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPass ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Confirmar Contraseña</Label>
+                  <Input
+                    type={showPass ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex justify-end border-t bg-muted/20 py-4">
+              <Button
+                type="submit"
+                disabled={isSaving}
+                className="min-w-[150px]"
+              >
+                {isSaving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="mr-2 h-4 w-4" />
+                )}
+                Guardar Cambios
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <User className="h-5 w-5 text-primary" />
-              <CardTitle>Perfil</CardTitle>
-            </div>
-            <CardDescription>Actualiza tu información personal</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nombre Completo</Label>
-              <Input
-                id="name"
-                value={profile.name}
-                onChange={(e) =>
-                  setProfile({ ...profile, name: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Correo electrónico</Label>
-              <Input
-                id="email"
-                type="email"
-                value={profile.email}
-                onChange={(e) =>
-                  setProfile({ ...profile, email: e.target.value })
-                }
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Lock className="h-5 w-5 text-primary" />
-              <CardTitle>Contraseña</CardTitle>
-            </div>
-            <CardDescription>Cambia tu contraseña de acceso</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="current-password">Contraseña actual</Label>
-              <Input id="current-password" type="password" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-password">Nueva contraseña</Label>
-              <Input id="new-password" type="password" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirmar contraseña</Label>
-              <Input id="confirm-password" type="password" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Palette className="h-5 w-5 text-primary" />
-              <CardTitle>Apariencia</CardTitle>
-            </div>
-            <CardDescription>
-              Personaliza el aspecto de tu plataforma
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Tema</Label>
-              <Select value={theme} onValueChange={setTheme}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un tema" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="light">Claro</SelectItem>
-                  <SelectItem value="dark">Oscuro</SelectItem>
-                  <SelectItem value="system">Sistema</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                El tema se aplica a toda la plataforma y se guarda
-                automáticamente
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              <CardTitle>Notificaciones</CardTitle>
-            </div>
-            <CardDescription>
-              Configura tu preferencia de notificaciones
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Notificaciones por email</Label>
-                <p className="text-sm text-muted-foreground">
-                  Recibe actualizaciones por correo
-                </p>
-              </div>
-              <Switch
-                checked={notifications.email}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, email: checked })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Notificaciones push</Label>
-                <p className="text-sm text-muted-foreground">
-                  Recibe alertas en el navegador
-                </p>
-              </div>
-              <Switch
-                checked={notifications.push}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, push: checked })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Nuevos usuarios</Label>
-                <p className="text-sm text-muted-foreground">
-                  Alertas cuando se registran usuarios
-                </p>
-              </div>
-              <Switch
-                checked={notifications.newUsers}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, newUsers: checked })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Nuevos cursos</Label>
-                <p className="text-sm text-muted-foreground">
-                  Alertas cuando se crean cursos
-                </p>
-              </div>
-              <Switch
-                checked={notifications.newCourses}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, newCourses: checked })
-                }
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
-              <CardTitle>Configuración de la Plataforma</CardTitle>
-            </div>
-            <CardDescription>
-              Opciones avanzadas de administración
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="space-y-0.5">
-                  <Label>Modo mantenimiento</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Desactivar acceso temporal
-                  </p>
-                </div>
-                <Switch />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="space-y-0.5">
-                  <Label>Registro abierto</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Permitir nuevos registros
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="space-y-0.5">
-                  <Label>Verificación de email</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Requerir verificación
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="space-y-0.5">
-                  <Label>Comentarios en cursos</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Permitir comentarios
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving} size="lg">
-          {saving ? (
-            <>
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              Guardando...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" />
-              Guardar Cambios
-            </>
-          )}
-        </Button>
-      </div>
+      </form>
     </div>
   )
 }

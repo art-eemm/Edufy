@@ -1,25 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Filter, BookOpen, TrendingUp, Mail } from "lucide-react"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Progress } from "@/components/ui/progress"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { useEffect, useState } from "react"
+import { Search, Loader2, Users, BookOpen, GraduationCap } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -28,225 +10,185 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { courses, enrollments, users } from "@/lib/mock-data"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
 
-// Get students enrolled in teacher's courses (teacher ID = 2)
-const teacherCourses = courses.filter((c) => c.teacherId === "2")
-const teacherCourseIds = teacherCourses.map((c) => c.id)
+interface EstudianteInscrito {
+  id_inscripcion: number
+  fecha_inscripcion: string
+  curso_nombre: string
+  estudiante_id: string
+  estudiante_nombre: string
+  estudiante_estatus: number
+}
 
-const enrolledStudents = enrollments
-  .filter((e) => teacherCourseIds.includes(e.courseId))
-  .map((e) => {
-    const student = users.find((u) => u.id === e.userId)
-    const course = courses.find((c) => c.id === e.courseId)
-    return {
-      ...e,
-      studentName: student?.name || "Desconocido",
-      studentEmail: student?.email || "",
-      studentAvatar: student?.avatar || "",
-      courseName: course?.title || "Curso no encontrado",
+export default function ProfesorEstudiantesPage() {
+  const [estudiantes, setEstudiantes] = useState<EstudianteInscrito[]>([])
+  const [busqueda, setBusqueda] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchEstudiantes() {
+      const storedUser = localStorage.getItem("edufy_user")
+      if (!storedUser) return
+      const { token } = JSON.parse(storedUser)
+
+      try {
+        const response = await fetch("/api/profesor/estudiantes", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await response.json()
+
+        if (response.ok) {
+          setEstudiantes(data)
+        } else {
+          toast.error(data.error || "Error al cargar la lista de estudiantes")
+        }
+      } catch (error) {
+        toast.error("Error de conexión")
+      } finally {
+        setIsLoading(false)
+      }
     }
-  })
 
-export default function EstudiantesPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [courseFilter, setCourseFilter] = useState<string>("all")
+    fetchEstudiantes()
+  }, [])
 
-  const filteredStudents = enrolledStudents.filter((student) => {
-    const matchesSearch =
-      student.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.studentEmail.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCourse =
-      courseFilter === "all" || student.courseId === courseFilter
-    return matchesSearch && matchesCourse
-  })
+  // Filtrado inteligente: busca tanto por el nombre del estudiante como por el nombre del curso
+  const estudiantesFiltrados = estudiantes.filter(
+    (e) =>
+      (e.estudiante_nombre || "")
+        .toLowerCase()
+        .includes(busqueda.toLowerCase()) ||
+      (e.curso_nombre || "").toLowerCase().includes(busqueda.toLowerCase())
+  )
 
-  const getProgressColor = (progress: number) => {
-    if (progress >= 80) return "text-success"
-    if (progress >= 50) return "text-warning-foreground"
-    return "text-muted-foreground"
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Mis Estudiantes</h1>
-        <p className="mt-1 text-muted-foreground">
-          Gestiona y monitorea el progreso de tus estudiantes
-        </p>
+    <div className="mx-auto flex w-full flex-col gap-6 px-4 py-6 lg:px-10">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Mis Estudiantes</h1>
+          <p className="text-muted-foreground">
+            Visualiza a todas las personas inscritas en tus diferentes cursos.
+          </p>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                <BookOpen className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Total Estudiantes
-                </p>
-                <p className="text-2xl font-bold text-foreground">
-                  {enrolledStudents.length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
-                <TrendingUp className="h-6 w-6 text-success" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Progreso Promedio
-                </p>
-                <p className="text-2xl font-bold text-foreground">
-                  {Math.round(
-                    enrolledStudents.reduce((acc, s) => acc + s.progress, 0) /
-                      enrolledStudents.length || 0
-                  )}
-                  %
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10">
-                <BookOpen className="h-6 w-6 text-accent" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Cursos Activos</p>
-                <p className="text-2xl font-bold text-foreground">
-                  {teacherCourses.length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Lista de Estudiantes</CardTitle>
-          <CardDescription>Estudiantes inscritos en tus cursos</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                Matrícula Actual
+              </CardTitle>
+              <CardDescription>
+                Tienes {estudiantes.length} inscripciones totales.
+              </CardDescription>
+            </div>
+            <div className="relative w-full md:w-80">
+              <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar estudiantes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                placeholder="Buscar por nombre o curso..."
+                className="bg-muted/50 pl-8 transition-colors focus:bg-background"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
               />
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <Filter className="mr-2 h-4 w-4" />
-                  {courseFilter === "all"
-                    ? "Todos los cursos"
-                    : teacherCourses.find((c) => c.id === courseFilter)?.title}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => setCourseFilter("all")}>
-                  Todos los cursos
-                </DropdownMenuItem>
-                {teacherCourses.map((course) => (
-                  <DropdownMenuItem
-                    key={course.id}
-                    onClick={() => setCourseFilter(course.id)}
-                  >
-                    {course.title}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
-
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Estudiante</TableHead>
-                  <TableHead>Curso</TableHead>
-                  <TableHead>Progreso</TableHead>
-                  <TableHead>Última Actividad</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStudents.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="h-24 text-center text-muted-foreground"
-                    >
-                      No se encontraron estudiantes
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead>Estudiante</TableHead>
+                <TableHead>Curso Inscrito</TableHead>
+                <TableHead>Fecha de Inscripción</TableHead>
+                <TableHead className="text-right">Estado de Cuenta</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {estudiantesFiltrados.length > 0 ? (
+                estudiantesFiltrados.map((registro) => (
+                  <TableRow
+                    key={registro.id_inscripcion}
+                    className={
+                      registro.estudiante_estatus === 0 ? "opacity-60" : ""
+                    }
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                          <GraduationCap className="h-4 w-4 text-primary" />
+                        </div>
+                        <span className="text-sm font-medium">
+                          {registro.estudiante_nombre}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <BookOpen className="h-3 w-3" />
+                        {registro.curso_nombre}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(
+                        registro.fecha_inscripcion
+                      ).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {registro.estudiante_estatus === 1 ? (
+                        <Badge
+                          variant="outline"
+                          className="bg-green-500/10 text-green-600 shadow-none"
+                        >
+                          Activo
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="destructive"
+                          className="border-0 bg-red-500/10 text-red-500 shadow-none hover:bg-red-500/20"
+                        >
+                          Suspendido
+                        </Badge>
+                      )}
                     </TableCell>
                   </TableRow>
-                ) : (
-                  filteredStudents.map((student) => (
-                    <TableRow key={student.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarFallback className="bg-primary/10 text-primary">
-                              {student.studentName
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium text-foreground">
-                              {student.studentName}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {student.studentEmail}
-                            </p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{student.courseName}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Progress value={student.progress} className="w-20" />
-                          <span
-                            className={`text-sm font-medium ${getProgressColor(student.progress)}`}
-                          >
-                            {student.progress}%
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {new Date(student.lastAccessedAt).toLocaleDateString(
-                          "es-ES"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
-                          <Mail className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <Users className="mb-3 h-10 w-10 opacity-20" />
+                      <p>No se encontraron estudiantes.</p>
+                      {estudiantes.length === 0 && (
+                        <p className="mt-1 text-xs">
+                          ¡Pronto tendrás tus primeras inscripciones!
+                        </p>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

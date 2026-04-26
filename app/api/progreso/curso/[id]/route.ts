@@ -1,46 +1,58 @@
-import { NextResponse } from "next/server";
-import { getUserFromToken } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+export const dynamic = "force-dynamic"
 
-//* PROGRASO DEL CURSO
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-    try {
-        const {id} = await params;
-        const user = await getUserFromToken(request);
+import { NextResponse } from "next/server"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { getUserFromToken } from "@/lib/auth"
 
-        if (!user) {
-            return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-        }
+export async function GET(request: Request, context: any) {
+  try {
+    const params = await Promise.resolve(context.params)
+    const id_curso = params.id
 
-        //* TOTAL VIDEOS
-        const { data: videos } = await supabaseAdmin
-        .from("videos")
-        .select("id_video")
-        .eq("id_curso", id)
-        .eq("estatus", 1);
+    const user = await getUserFromToken(request)
+    if (!user)
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-        //* VIDEOS VISTOS
-        const { data: vistos } = await supabaseAdmin
-        .from("progreso_videos")
-        .select("id_video")
-        .eq("id_usuario", user.id)
-        .in("id_video", videos.map(v => v.id_video));
+    const { data: videos, error: videosError } = await supabaseAdmin
+      .from("videos")
+      .select("id_video")
+      .eq("id_curso", id_curso)
 
-        const total = videos.length;
-        const completados = vistos.length;
+    if (videosError) throw videosError
 
-        const porcentaje = total === 0 ? 0 : (completados / total) * 100;
-
-        return NextResponse.json({
-        total,
-        completados,
-        porcentaje
-        });
-
-    } catch (error) {
-        return NextResponse.json(
-            { error: "Error al obtener progreso" },
-            { status: 500 }
-        );
+    if (!videos || videos.length === 0) {
+      return NextResponse.json({
+        total: 0,
+        completados: 0,
+        porcentaje: 0,
+      })
     }
+
+    const idsVideosCurso = videos.map((v) => v.id_video)
+
+    const { data: vistos, error: vistosError } = await supabaseAdmin
+      .from("progreso_videos")
+      .select("id_video")
+      .eq("id_usuario", user.id)
+      .eq("visto", true)
+      .in("id_video", idsVideosCurso)
+
+    if (vistosError) throw vistosError
+
+    const total = videos.length
+    const completados = vistos ? vistos.length : 0
+    const porcentaje = Math.round((completados / total) * 100)
+
+    return NextResponse.json({
+      total,
+      completados,
+      porcentaje,
+    })
+  } catch (error: any) {
+    console.error("Error al calcular progreso:", error.message || error)
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
+      { status: 500 }
+    )
+  }
 }

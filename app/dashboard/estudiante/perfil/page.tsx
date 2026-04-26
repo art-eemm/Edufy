@@ -2,7 +2,17 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { User, Mail, Shield, Loader2, Save, UserCircle } from "lucide-react"
+import {
+  User,
+  Mail,
+  Loader2,
+  Save,
+  Camera,
+  Lock,
+  KeyRound,
+  Eye,
+  EyeOff,
+} from "lucide-react"
 import {
   Card,
   CardContent,
@@ -14,194 +24,258 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { toast } from "sonner" // Asumiendo que usas sonner por tu package.json
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { toast } from "sonner"
 
 export default function StudentProfilePage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Estados para los datos del formulario
   const [nombre, setNombre] = useState("")
   const [email, setEmail] = useState("")
   const [rol, setRol] = useState("")
 
+  const [previewUrl, setPreviewUrl] = useState("")
+  const [archivoImagen, setArchivoImagen] = useState<File | null>(null)
+
+  const [showPass, setShowPass] = useState(false)
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+
   useEffect(() => {
     const fetchProfile = async () => {
-      const storedUser = localStorage.getItem("edufy_user")
-      if (!storedUser) {
+      const storedUserStr = localStorage.getItem("edufy_user")
+      if (!storedUserStr) {
         router.push("/login")
         return
       }
 
-      const { token } = JSON.parse(storedUser)
+      const { token, email, role } = JSON.parse(storedUserStr)
+      setEmail(email)
+      setRol(role)
 
       try {
         const response = await fetch("/api/usuarios/perfil", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store", // <-- GARANTIZA DATOS FRESCOS SIEMPRE
         })
-
         const data = await response.json()
 
         if (response.ok) {
           setNombre(data.nombre_completo || "")
-          setEmail(data.email || "")
-          setRol(data.rol || "Estudiante")
-        } else {
-          toast.error("No se pudo cargar la información del perfil")
+          setPreviewUrl(data.imagen_perfil || "")
         }
       } catch (error) {
-        console.error("Error fetching profile:", error)
+        toast.error("Error al cargar el perfil")
       } finally {
         setIsLoading(false)
       }
     }
-
     fetchProfile()
   }, [router])
 
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSaving(true)
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setArchivoImagen(file)
+      setPreviewUrl(URL.createObjectURL(file))
+    }
+  }
 
-    const storedUser = localStorage.getItem("edufy_user")
-    if (!storedUser) return
-    const { token } = JSON.parse(storedUser)
+  const handleSaveAll = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (newPassword && newPassword !== confirmPassword) {
+      return toast.error("Las contraseñas no coinciden")
+    }
+    if (newPassword && newPassword.length < 6) {
+      return toast.error("La contraseña debe tener al menos 6 caracteres")
+    }
+
+    setIsSaving(true)
+    const storedUserStr = localStorage.getItem("edufy_user")
+    const { token } = JSON.parse(storedUserStr!)
 
     try {
+      const formData = new FormData()
+      formData.append("nombre", nombre)
+      if (archivoImagen) formData.append("imagen_perfil", archivoImagen)
+      if (newPassword) formData.append("password", newPassword)
+
       const response = await fetch("/api/usuarios/perfil", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ nombre_completo: nombre }),
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
       })
 
-      if (response.ok) {
-        // Actualizar también el nombre en el localStorage para que el sidebar se refresque
-        const userData = JSON.parse(storedUser)
-        userData.name = nombre
-        localStorage.setItem("edufy_user", JSON.stringify(userData))
+      const result = await response.json()
 
-        toast.success("Perfil actualizado correctamente")
+      if (response.ok) {
+        toast.success(result.message)
+        setNewPassword("")
+        setConfirmPassword("")
+        setArchivoImagen(null) // Reseteamos el archivo tras subirlo
+
+        // ACTUALIZAMOS LOCALSTORAGE CON LA NUEVA IMAGEN QUE ENVIÓ LA API
+        const updatedUser = {
+          ...JSON.parse(storedUserStr!),
+          name: nombre,
+          imagen_perfil: result.imagen_perfil, // <-- Guardamos la URL pública
+        }
+        localStorage.setItem("edufy_user", JSON.stringify(updatedUser))
+        window.dispatchEvent(new Event("storage")) // Avisa al sidebar
       } else {
-        const errorData = await response.json()
-        toast.error(errorData.error || "Error al actualizar el perfil")
+        toast.error(result.error || "Error al guardar los cambios")
       }
     } catch (error) {
-      toast.error("Ocurrió un error al conectar con el servidor")
+      toast.error("Error de conexión al guardar")
     } finally {
       setIsSaving(false)
     }
   }
 
-  if (isLoading) {
+  if (isLoading)
     return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="animate-spin text-primary" />
       </div>
     )
-  }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Mi Perfil</h1>
+    <div className="mx-auto max-w-5xl space-y-8 pb-10">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight">Mi Perfil</h1>
         <p className="text-muted-foreground">
-          Gestiona tu información personal y cuenta.
+          Gestiona tu información personal e imagen de perfil.
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Columna de Avatar/Resumen */}
-        <Card className="md:col-span-1">
-          <CardContent className="flex flex-col items-center pt-8">
-            <div className="relative mb-4">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary/10">
-                <UserCircle className="h-16 w-16 text-primary" />
+      <form
+        onSubmit={handleSaveAll}
+        className="grid gap-8 lg:grid-cols-[280px_1fr]"
+      >
+        <aside className="space-y-6">
+          <Card className="overflow-hidden">
+            <CardContent className="flex flex-col items-center pt-8">
+              <div className="group relative">
+                <Avatar className="h-40 w-40 border-4 border-background shadow-xl">
+                  <AvatarImage src={previewUrl} className="object-cover" />
+                  <AvatarFallback className="bg-primary/10 text-3xl text-primary">
+                    {nombre.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <label className="absolute right-2 bottom-2 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all hover:scale-110 active:scale-95">
+                  <Camera className="h-5 w-5" />
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                  />
+                </label>
               </div>
-            </div>
-            <h2 className="text-xl font-bold">{nombre}</h2>
-            <p className="text-sm text-muted-foreground capitalize">{rol}</p>
-          </CardContent>
-        </Card>
+              <div className="mt-6 text-center">
+                <h2 className="text-lg font-bold">{nombre || "Usuario"}</h2>
+                <p className="mt-1 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  {rol}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
 
-        {/* Columna de Formulario */}
-        <Card className="md:col-span-2">
-          <form onSubmit={handleUpdateProfile}>
+        <div className="space-y-6">
+          <Card>
             <CardHeader>
-              <CardTitle>Información Personal</CardTitle>
+              <CardTitle>Datos Personales</CardTitle>
               <CardDescription>
-                Actualiza tus datos de contacto básicos.
+                Esta información será visible en tus certificados y cursos.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Nombre Completo</Label>
+              <div className="space-y-2">
+                <Label htmlFor="nombre">Nombre Completo</Label>
                 <div className="relative">
-                  <User className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <User className="absolute top-3 left-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    id="name"
+                    id="nombre"
+                    className="pl-10"
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
-                    className="pl-10"
-                    placeholder="Tu nombre"
                     required
                   />
                 </div>
               </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="email">Correo Electrónico</Label>
-                <div className="relative">
-                  <Mail className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    disabled
-                    className="bg-muted pl-10"
-                  />
+              <div className="space-y-2">
+                <Label>Correo Electrónico (No editable)</Label>
+                <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5 text-muted-foreground">
+                  <Mail className="h-4 w-4" />
+                  <span className="text-sm">{email}</span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  El correo electrónico no se puede cambiar por seguridad.
-                </p>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="grid gap-2">
-                <Label htmlFor="role">Rol asignado</Label>
-                <div className="relative">
-                  <Shield className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Card className="border-destructive/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <KeyRound className="h-5 w-5" />
+                Seguridad
+              </CardTitle>
+              <CardDescription>
+                Deja estos campos en blanco si no deseas cambiar tu contraseña.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Nueva Contraseña</Label>
+                  <div className="relative">
+                    <Lock className="absolute top-3 left-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type={showPass ? "text" : "password"}
+                      className="pr-10 pl-10"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute top-3 right-3 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPass ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Confirmar Contraseña</Label>
                   <Input
-                    id="role"
-                    value={rol}
-                    disabled
-                    className="bg-muted pl-10 capitalize"
+                    type={showPass ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex justify-end border-t bg-muted/30 px-6 py-4">
+            <CardFooter className="flex justify-end border-t bg-muted/20 py-4">
               <Button type="submit" disabled={isSaving}>
                 {isSaving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Guardando...
-                  </>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Guardar Cambios
-                  </>
+                  <Save className="mr-2 h-4 w-4" />
                 )}
+                Guardar Todos los Cambios
               </Button>
             </CardFooter>
-          </form>
-        </Card>
-      </div>
+          </Card>
+        </div>
+      </form>
     </div>
   )
 }

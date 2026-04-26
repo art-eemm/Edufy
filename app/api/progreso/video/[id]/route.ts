@@ -1,63 +1,80 @@
-import { NextResponse } from "next/server";
-import { getUserFromToken } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+export const dynamic = "force-dynamic"
 
-//* VALIDARCION SI SE PUEDE VER UN VIDEO
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+import { NextResponse } from "next/server"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { getUserFromToken } from "@/lib/auth"
+
+export async function POST(request: Request, context: any) {
   try {
-    const {id} = await params;
-    const user = await getUserFromToken(request);
+    // 1. Resolución segura de parámetros (evita errores en Next.js 14/15)
+    const params = await Promise.resolve(context.params)
+    const id_video = params.id
 
-    if (!user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    const user = await getUserFromToken(request)
+    if (!user)
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+
+    // 2. Obtener la información del video para saber a qué curso pertenece
+    const { data: video, error: videoError } = await supabaseAdmin
+      .from("videos")
+      .select("id_curso")
+      .eq("id_video", id_video)
+      .single()
+
+    // --- SOLUCIÓN AL ERROR DE BUILD ---
+    // Si el video no existe, detenemos la ejecución aquí
+    if (videoError || !video) {
+      return NextResponse.json(
+        { error: "Video no encontrado" },
+        { status: 404 }
+      )
     }
 
-    const { data: video } = await supabaseAdmin
-      .from("videos")
-      .select("id_curso, orden")
-      .eq("id_video", id)
-      .single();
-
-    //* VALIDAR INSCRIPCIÓN
-    const { data: inscripcion } = await supabaseAdmin
+    // 3. Verificar si el usuario realmente está inscrito en el curso de ese video
+    // Ahora TypeScript sabe que 'video' NO es null
+    const { data: inscripcion, error: insError } = await supabaseAdmin
       .from("inscripciones")
       .select("id_inscripcion")
       .eq("id_usuario", user.id)
       .eq("id_curso", video.id_curso)
-      .maybeSingle();
+      .maybeSingle()
 
-    if (!inscripcion) {
-      return NextResponse.json({ permitido: false });
+    if (insError || !inscripcion) {
+      return NextResponse.json(
+        { error: "No estás inscrito en este curso" },
+        { status: 403 }
+      )
     }
 
-    //* PRIMER VIDEO SIEMPRE PERMITIDO
-    if (video.orden === 1) {
-      return NextResponse.json({ permitido: true });
-    }
-
-    //* VALIDAR VIDEO ANTERIOR
-    const { data: anterior } = await supabaseAdmin
-      .from("videos")
-      .select("id_video")
-      .eq("id_curso", video.id_curso)
-      .eq("orden", video.orden - 1)
-      .maybeSingle();
-
-    const { data: progreso } = await supabaseAdmin
+    // 4. Marcar el video como visto (o actualizar progreso)
+    const { error: upsertError } = await supabaseAdmin
       .from("progreso_videos")
-      .select("visto")
-      .eq("id_usuario", user.id)
-      .eq("id_video", anterior?.id_video)
-      .maybeSingle();
+      .upsert(
+        {
+          id_usuario: user.id,
+          id_video: parseInt(id_video as string),
+          visto: true,
+          fecha_visto: new Date().toISOString(),
+        },
+        {
+          onConflict: "id_usuario, id_video",
+        }
+      )
 
-    return NextResponse.json({
-      permitido: progreso?.visto === true
-    });
+    if (upsertError) throw upsertError
 
-  } catch (error) {
     return NextResponse.json(
-      { error: "Error validando acceso" },
+      { message: "Progreso actualizado" },
+      { status: 200 }
+    )
+  } catch (error: any) {
+    console.error(
+      "Error al actualizar progreso del video:",
+      error.message || error
+    )
+    return NextResponse.json(
+      { error: "Error interno del servidor" },
       { status: 500 }
-    );
+    )
   }
 }

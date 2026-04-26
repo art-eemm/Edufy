@@ -134,11 +134,11 @@ const teacherLinks = [
     label: "Estudiantes",
     icon: Users,
   },
-  {
-    href: "/dashboard/profesor/estadisticas",
-    label: "Estadísticas",
-    icon: BarChart3,
-  },
+  // {
+  //   href: "/dashboard/profesor/estadisticas",
+  //   label: "Estadísticas",
+  //   icon: BarChart3,
+  // },
 ]
 
 const studentLinks = [

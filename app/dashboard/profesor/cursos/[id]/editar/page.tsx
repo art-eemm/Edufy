@@ -1,441 +1,442 @@
 "use client"
 
-import { useState, use } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState, useRef } from "react"
+import { useParams, useRouter } from "next/navigation"
 import {
-  ArrowLeft,
   Save,
+  Loader2,
+  Video,
   Plus,
   Trash2,
-  GripVertical,
+  Edit,
+  ArrowLeft,
+  FileVideo,
   Clock,
-  Play,
+  GripVertical,
+  Check,
+  X,
 } from "lucide-react"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { courses, lessons as allLessons, categories } from "@/lib/mock-data"
-import type { Lesson } from "@/lib/types"
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card"
+import { toast } from "sonner"
+import Link from "next/link"
 
-export default function EditarCursoPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = use(params)
+interface VideoType {
+  id_video: number
+  titulo: string
+  url_video: string
+  orden: number
+  duracion: number
+}
+
+export default function EditarCursoPage() {
+  const { id } = useParams()
   const router = useRouter()
-  const course = courses.find((c) => c.id === id)
-  const courseLessons = allLessons.filter((l) => l.courseId === id)
 
-  const [saving, setSaving] = useState(false)
-  const [courseData, setCourseData] = useState({
-    title: course?.title || "",
-    description: course?.description || "",
-    category: course?.category || "",
-    level: course?.level || "principiante",
-    price: course?.price || 0,
-    duration: course?.duration || "",
-  })
+  const [nombre, setNombre] = useState("")
+  const [descripcion, setDescripcion] = useState("")
+  const [isSavingCurso, setIsSavingCurso] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const [lessons, setLessons] = useState<Lesson[]>(courseLessons)
-  const [draggedLesson, setDraggedLesson] = useState<number | null>(null)
-  const [showSuccess, setShowSuccess] = useState(false)
+  const [videos, setVideos] = useState<VideoType[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [nuevoVideoTitulo, setNuevoVideoTitulo] = useState("")
+  const [nuevoVideoFile, setNuevoVideoFile] = useState<File | null>(null)
+  const [nuevoVideoDuracion, setNuevoVideoDuracion] = useState(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  if (!course) {
+  // Estados para la Edición de un Video Existente
+  const [editingVideoId, setEditingVideoId] = useState<number | null>(null)
+  const [editingVideoTitle, setEditingVideoTitle] = useState("")
+
+  useEffect(() => {
+    async function fetchDatos() {
+      const storedUser = localStorage.getItem("edufy_user")
+      if (!storedUser) return router.push("/login")
+      const { token } = JSON.parse(storedUser)
+
+      try {
+        const resCurso = await fetch(`/api/cursos/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const dataCurso = await resCurso.json()
+        if (resCurso.ok) {
+          setNombre(dataCurso.nombre || "")
+          setDescripcion(dataCurso.descripcion || "")
+        }
+
+        const resVideos = await fetch(`/api/videos/curso/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (resVideos.ok) setVideos((await resVideos.json()) || [])
+      } catch (error) {
+        toast.error("Error al cargar los datos del curso")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchDatos()
+  }, [id, router])
+
+  const handleActualizarCurso = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSavingCurso(true)
+    const { token } = JSON.parse(localStorage.getItem("edufy_user")!)
+
+    try {
+      const response = await fetch(`/api/cursos/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ nombre, descripcion }),
+      })
+      if (response.ok) toast.success("Información del curso actualizada")
+      else toast.error("Error al actualizar el curso")
+    } catch (error) {
+      toast.error("Error de conexión")
+    } finally {
+      setIsSavingCurso(false)
+    }
+  }
+
+  // ============== NUEVA FUNCIÓN: ACTUALIZAR TÍTULO DE VIDEO ==============
+  const handleGuardarTituloVideo = async (id_video: number) => {
+    if (!editingVideoTitle.trim())
+      return toast.error("El título no puede estar vacío")
+
+    const { token } = JSON.parse(localStorage.getItem("edufy_user")!)
+
+    try {
+      const res = await fetch(`/api/videos/${id_video}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ titulo: editingVideoTitle }),
+      })
+
+      if (res.ok) {
+        toast.success("Lección renombrada")
+        setVideos(
+          videos.map((v) =>
+            v.id_video === id_video ? { ...v, titulo: editingVideoTitle } : v
+          )
+        )
+        setEditingVideoId(null)
+      } else {
+        toast.error("Error al renombrar")
+      }
+    } catch (e) {
+      toast.error("Error de conexión")
+    }
+  }
+
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setNuevoVideoFile(file)
+      const videoNode = document.createElement("video")
+      videoNode.preload = "metadata"
+      videoNode.onloadedmetadata = () =>
+        setNuevoVideoDuracion(Math.round(videoNode.duration))
+      videoNode.src = URL.createObjectURL(file)
+    }
+  }
+
+  const handleSubirVideo = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!nuevoVideoFile || !nuevoVideoTitulo)
+      return toast.error("Faltan datos del video")
+
+    setIsUploading(true)
+    const { token } = JSON.parse(localStorage.getItem("edufy_user")!)
+
+    try {
+      const formData = new FormData()
+      formData.append("id_curso", id as string)
+      formData.append("titulo", nuevoVideoTitulo)
+      formData.append("duracion", nuevoVideoDuracion.toString())
+      formData.append("video", nuevoVideoFile)
+
+      const response = await fetch("/api/videos", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      })
+
+      if (response.ok) {
+        toast.success("Video subido correctamente")
+        const nuevoVideo = await response.json()
+        setVideos([...videos, nuevoVideo.video])
+        setNuevoVideoTitulo("")
+        setNuevoVideoFile(null)
+        setNuevoVideoDuracion(0)
+        if (fileInputRef.current) fileInputRef.current.value = ""
+      } else {
+        toast.error("Error al subir video")
+      }
+    } catch (error) {
+      toast.error("Error al subir el archivo")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleEliminarVideo = async (id_video: number) => {
+    if (!confirm("¿Estás seguro de eliminar este video?")) return
+    const { token } = JSON.parse(localStorage.getItem("edufy_user")!)
+
+    try {
+      const response = await fetch(`/api/videos/${id_video}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (response.ok) {
+        toast.success("Video eliminado")
+        setVideos(videos.filter((v) => v.id_video !== id_video))
+      } else {
+        toast.error("Error al eliminar el video")
+      }
+    } catch (error) {
+      toast.error("Error de conexión")
+    }
+  }
+
+  if (isLoading)
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <p className="text-muted-foreground">Curso no encontrado</p>
-        <Button
-          variant="link"
-          onClick={() => router.push("/dashboard/profesor/cursos")}
-        >
-          Volver a mis cursos
-        </Button>
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
-  }
-
-  const handleSave = async () => {
-    setSaving(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setSaving(false)
-    setShowSuccess(true)
-    setTimeout(() => setShowSuccess(false), 3000)
-  }
-
-  const addLesson = () => {
-    const newLesson: Lesson = {
-      id: `new-${Date.now()}`,
-      courseId: id,
-      title: "Nueva Lección",
-      description: "",
-      videoUrl: "",
-      duration: "00:00",
-      order: lessons.length + 1,
-    }
-    setLessons([...lessons, newLesson])
-  }
-
-  const updateLesson = (
-    index: number,
-    field: keyof Lesson,
-    value: string | number
-  ) => {
-    const updated = [...lessons]
-    updated[index] = { ...updated[index], [field]: value }
-    setLessons(updated)
-  }
-
-  const removeLesson = (index: number) => {
-    const updated = lessons.filter((_, i) => i !== index)
-    // Update order
-    updated.forEach((lesson, i) => {
-      lesson.order = i + 1
-    })
-    setLessons(updated)
-  }
-
-  const handleDragStart = (index: number) => {
-    setDraggedLesson(index)
-  }
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault()
-    if (draggedLesson === null || draggedLesson === index) return
-
-    const updated = [...lessons]
-    const [draggedItem] = updated.splice(draggedLesson, 1)
-    updated.splice(index, 0, draggedItem)
-
-    // Update orders
-    updated.forEach((lesson, i) => {
-      lesson.order = i + 1
-    })
-
-    setLessons(updated)
-    setDraggedLesson(index)
-  }
-
-  const handleDragEnd = () => {
-    setDraggedLesson(null)
-  }
 
   return (
-    <div className="flex flex-col gap-6">
+    // CAMBIO AQUÍ: de max-w-5xl a max-w-7xl para hacerla mucho más ancha y espaciosa
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 pb-10">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-5 w-5" />
+        <Button variant="outline" size="icon" asChild>
+          <Link href="/dashboard/profesor/cursos">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
         </Button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold text-foreground">Editar Curso</h1>
-          <p className="mt-1 text-muted-foreground">
-            Modifica la información y lecciones del curso
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Editor del Curso
+          </h1>
+          <p className="text-muted-foreground">
+            Modifica la información general y gestiona el temario.
           </p>
         </div>
-        <Badge
-          variant={course.status === "published" ? "default" : "secondary"}
-        >
-          {course.status === "published" ? "Publicado" : "Borrador"}
-        </Badge>
       </div>
 
-      {showSuccess && (
-        <div className="rounded-lg border border-success/20 bg-success/10 p-4 text-success">
-          Los cambios se han guardado correctamente.
-        </div>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Course Info */}
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Información del Curso</CardTitle>
-              <CardDescription>Datos generales del curso</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Título del curso</Label>
-                <Input
-                  id="title"
-                  value={courseData.title}
-                  onChange={(e) =>
-                    setCourseData({ ...courseData, title: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Descripción</Label>
-                <Textarea
-                  id="description"
-                  rows={4}
-                  value={courseData.description}
-                  onChange={(e) =>
-                    setCourseData({
-                      ...courseData,
-                      description: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-8 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-4">
+          <form onSubmit={handleActualizarCurso}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Información General</CardTitle>
+                <CardDescription>Datos públicos del curso.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Categoría</Label>
-                  <Select
-                    value={courseData.category}
-                    onValueChange={(value) =>
-                      setCourseData({ ...courseData, category: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Nivel</Label>
-                  <Select
-                    value={courseData.level}
-                    onValueChange={(value) =>
-                      setCourseData({
-                        ...courseData,
-                        level: value as
-                          | "principiante"
-                          | "intermedio"
-                          | "avanzado",
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="principiante">Principiante</SelectItem>
-                      <SelectItem value="intermedio">Intermedio</SelectItem>
-                      <SelectItem value="avanzado">Avanzado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="price">Precio ($)</Label>
+                  <Label>Nombre del Curso</Label>
                   <Input
-                    id="price"
-                    type="number"
-                    value={courseData.price}
-                    onChange={(e) =>
-                      setCourseData({
-                        ...courseData,
-                        price: parseFloat(e.target.value),
-                      })
-                    }
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="duration">Duración</Label>
-                  <Input
-                    id="duration"
-                    value={courseData.duration}
-                    onChange={(e) =>
-                      setCourseData({ ...courseData, duration: e.target.value })
-                    }
-                    placeholder="ej: 20 horas"
+                  <Label>Descripción</Label>
+                  <Textarea
+                    value={descripcion}
+                    onChange={(e) => setDescripcion(e.target.value)}
+                    rows={6}
+                    required
                   />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Lessons */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Lecciones</CardTitle>
-                  <CardDescription>
-                    Arrastra para reordenar las lecciones
-                  </CardDescription>
-                </div>
-                <Button onClick={addLesson}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Añadir Lección
+                <Button
+                  type="submit"
+                  disabled={isSavingCurso}
+                  className="w-full"
+                >
+                  {isSavingCurso ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  Guardar Cambios
                 </Button>
-              </div>
+              </CardContent>
+            </Card>
+          </form>
+        </div>
+
+        <div className="space-y-6 lg:col-span-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Video className="h-5 w-5 text-primary" /> Temario (
+                {videos.length} lecciones)
+              </CardTitle>
+              <CardDescription>
+                Sube tus videos y renombra las lecciones haciendo clic en el
+                lápiz.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              {lessons.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Play className="h-12 w-12 text-muted-foreground/50" />
-                  <p className="mt-4 text-muted-foreground">
-                    No hay lecciones aún
-                  </p>
-                  <Button className="mt-4" onClick={addLesson}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Crear primera lección
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {lessons.map((lesson, index) => (
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                {videos.length > 0 ? (
+                  videos.map((video, index) => (
                     <div
-                      key={lesson.id}
-                      draggable
-                      onDragStart={() => handleDragStart(index)}
-                      onDragOver={(e) => handleDragOver(e, index)}
-                      onDragEnd={handleDragEnd}
-                      className={`flex items-start gap-3 rounded-lg border p-4 transition-colors ${
-                        draggedLesson === index
-                          ? "border-primary bg-primary/5"
-                          : "bg-card"
-                      }`}
+                      key={video.id_video}
+                      className="flex items-center justify-between rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50"
                     >
-                      <button className="mt-2 cursor-grab text-muted-foreground hover:text-foreground">
-                        <GripVertical className="h-5 w-5" />
-                      </button>
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                        {lesson.order}
-                      </div>
-                      <div className="flex-1 space-y-3">
-                        <Input
-                          value={lesson.title}
-                          onChange={(e) =>
-                            updateLesson(index, "title", e.target.value)
-                          }
-                          placeholder="Título de la lección"
-                          className="font-medium"
-                        />
-                        <Textarea
-                          value={lesson.description}
-                          onChange={(e) =>
-                            updateLesson(index, "description", e.target.value)
-                          }
-                          placeholder="Descripción de la lección"
-                          rows={2}
-                        />
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <Input
-                            value={lesson.videoUrl}
-                            onChange={(e) =>
-                              updateLesson(index, "videoUrl", e.target.value)
-                            }
-                            placeholder="URL del video"
-                          />
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <Input
-                              value={lesson.duration}
-                              onChange={(e) =>
-                                updateLesson(index, "duration", e.target.value)
-                              }
-                              placeholder="Duración (ej: 15:30)"
-                            />
-                          </div>
+                      <div className="flex flex-1 items-center gap-3 overflow-hidden">
+                        <div className="cursor-grab text-muted-foreground">
+                          <GripVertical className="h-4 w-4" />
+                        </div>
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-primary/10 text-xs font-bold text-primary">
+                          {index + 1}
+                        </div>
+
+                        <div className="mr-4 flex flex-1 flex-col overflow-hidden">
+                          {editingVideoId === video.id_video ? (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={editingVideoTitle}
+                                onChange={(e) =>
+                                  setEditingVideoTitle(e.target.value)
+                                }
+                                className="h-8 max-w-sm text-sm"
+                                autoFocus
+                              />
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-green-600 hover:bg-green-100 hover:text-green-700"
+                                onClick={() =>
+                                  handleGuardarTituloVideo(video.id_video)
+                                }
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-muted-foreground"
+                                onClick={() => setEditingVideoId(null)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="truncate text-sm font-medium">
+                                {video.titulo}
+                              </span>
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3" />{" "}
+                                {Math.floor(video.duracion / 60)}:
+                                {(video.duracion % 60)
+                                  .toString()
+                                  .padStart(2, "0")}{" "}
+                                min
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => removeLesson(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={() => {
+                            setEditingVideoId(video.id_video)
+                            setEditingVideoTitle(video.titulo)
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEliminarVideo(video.id_video)}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumen</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground">Total Lecciones</p>
-                <p className="font-medium text-foreground">{lessons.length}</p>
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground">Estudiantes</p>
-                <p className="font-medium text-foreground">
-                  {course.studentsCount.toLocaleString()}
-                </p>
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground">Calificación</p>
-                <p className="font-medium text-foreground">
-                  {course.rating} / 5.0
-                </p>
-              </div>
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground">Ingresos</p>
-                <p className="font-medium text-foreground">
-                  ${(course.studentsCount * course.price).toLocaleString()}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Acciones</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button className="w-full" onClick={handleSave} disabled={saving}>
-                {saving ? (
-                  <>
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Guardando...
-                  </>
+                  ))
                 ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Guardar Cambios
-                  </>
+                  <div className="rounded-lg border-2 border-dashed p-8 text-center text-muted-foreground">
+                    Aún no has subido ningún video a este curso.
+                  </div>
                 )}
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => router.push(`/curso/${id}`)}
+              </div>
+
+              <hr />
+
+              <form
+                onSubmit={handleSubirVideo}
+                className="space-y-4 rounded-xl border bg-muted/30 p-4"
               >
-                Ver Curso
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar Curso
-              </Button>
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <Plus className="h-4 w-4" /> Agregar nueva lección
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Título de la lección</Label>
+                    <Input
+                      placeholder="Ej: 1. Introducción..."
+                      value={nuevoVideoTitulo}
+                      onChange={(e) => setNuevoVideoTitulo(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Archivo de Video (.mp4)</Label>
+                    <Input
+                      type="file"
+                      accept="video/mp4,video/x-m4v,video/*"
+                      ref={fileInputRef}
+                      onChange={handleVideoSelect}
+                      required
+                      className="cursor-pointer file:font-semibold file:text-primary"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isUploading || !nuevoVideoFile}
+                  className="w-full sm:w-auto"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Subiendo
+                      y procesando...
+                    </>
+                  ) : (
+                    <>
+                      <FileVideo className="mr-2 h-4 w-4" /> Subir Lección
+                    </>
+                  )}
+                </Button>
+              </form>
             </CardContent>
           </Card>
         </div>

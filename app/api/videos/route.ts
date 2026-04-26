@@ -1,114 +1,106 @@
-import { NextResponse } from "next/server";
-import { getUserFromToken, hasRole } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+export const dynamic = "force-dynamic"
 
-//*CREAR VIDEO
-export async function POST(request:Request){
-    try{
-        const user = await getUserFromToken(request);
-        if(!user){
-            return NextResponse.json(
-                { error: "Unauthorized" }, 
-                { status: 401 }
-            );
-        }
-        const isProfesor = await hasRole(user.id, "profesor");
-        if(!isProfesor){
-            return NextResponse.json(
-                { error: "No Autorizado" }, 
-                { status: 403 }
-            );
-        }
+import { NextResponse } from "next/server"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { getUserFromToken, hasRole } from "@/lib/auth"
 
-        const formData = await request.formData();
-        const curso_id = formData.get("cursoId") as string
-        const nombre = formData.get("nombre") as string
-        const duracion = formData.get("duracion") as string
-        const video = formData.get("video") as File
-
-        if(!curso_id || !nombre || !duracion || !video){
-            return NextResponse.json(
-                { error: "Faltan campos obligatorios" },
-                { status: 400 }
-            );
-        }
-
-        //* OBTENER EL ULTIMO ORDEN DE LOS VIDEOS
-        const { data: ultimoVideo } = await supabaseAdmin
-        .from("videos")
-        .select("orden")
-        .eq("id_curso", curso_id)
-        .eq("estatus", 1)
-        .order("orden", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-        const nuevoOrden = ultimoVideo ? ultimoVideo.orden + 1 : 1;
-
-        //* VALIDAR QUE EL ARCHIVO QUE SE SUBE ES VIDEO
-        if(!video.type.startsWith("video/")){
-            return NextResponse.json(
-                { error: "El archivo debe ser un video" },
-                { status: 400 }
-            );
-        }
-
-        //* SUBIMOS EL VIDEO A SUPABASE
-        const fileExt = video.name.split(".").pop();
-        const fileName = `video/${user.id}-${Date.now()}-${video.name}`;
-        const { error: uploadError } = await supabaseAdmin.storage
-        .from("videos")
-        .upload(fileName, video, {
-            upsert: true,
-        });
-
-        if(uploadError){
-            console.error("Error uploading video:", uploadError);
-            return NextResponse.json(
-                { error: "Error al subir el video" }, 
-                { status: 500 }
-            );
-        }
-
-        //* OBTENER LA URL PUBLICA DEL VIDEO
-        const { data: publicUrl } = supabaseAdmin.storage
-        .from("videos")
-        .getPublicUrl(fileName);
-        const videoUrl = publicUrl.publicUrl;
-
-        //* GUARDAR EN BD
-        const { error: insertError } = await supabaseAdmin
-        .from("videos")
-        .insert([
-            {
-            id_curso: curso_id,
-            titulo: nombre,
-            url_video: videoUrl,
-            orden: nuevoOrden,
-            duracion: duracion,
-            },
-        ]);
-
-        if (insertError) {
-            return NextResponse.json(
-                { error: insertError.message },
-                { status: 500 }
-            );
-        }
-
-        //* RESPUESTA
-        return NextResponse.json(
-            { 
-                message: "Video creado correctamente",
-                orden: nuevoOrden,
-                url_video: videoUrl,
-            }
-    );
-
-    }catch(error){
-        console.error("Error creating video:", error);
-        return NextResponse.json(
-            { error: "Failed to create video" }, 
-            { status: 500 }
-        );
+export async function POST(request: Request) {
+  try {
+    const user = await getUserFromToken(request)
+    if (!user || !(await hasRole(user.id, "profesor"))) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
+
+    const contentType = request.headers.get("content-type") || ""
+    if (!contentType.includes("multipart/form-data")) {
+      return NextResponse.json(
+        { error: "El formato de envío debe ser multipart/form-data" },
+        { status: 400 }
+      )
+    }
+
+    const formData = await request.formData()
+
+    const id_curso = formData.get("id_curso")
+    const titulo = formData.get("titulo")
+    const duracionStr = formData.get("duracion")
+    const videoFile = formData.get("video") as File | null
+
+    if (!id_curso || id_curso === "undefined") {
+      return NextResponse.json(
+        { error: "Error interno: El ID del curso no llegó a la API" },
+        { status: 400 }
+      )
+    }
+    if (!titulo) {
+      return NextResponse.json(
+        { error: "Falta el título de la lección" },
+        { status: 400 }
+      )
+    }
+    if (!videoFile || videoFile.size === 0) {
+      return NextResponse.json(
+        { error: "El archivo de video está vacío o no se adjuntó" },
+        { status: 400 }
+      )
+    }
+
+    const duracion = parseInt(duracionStr as string) || 0
+
+    const { data: videosActuales } = await supabaseAdmin
+      .from("videos")
+      .select("orden")
+      .eq("id_curso", id_curso)
+      .order("orden", { ascending: false })
+      .limit(1)
+
+    const nuevoOrden =
+      videosActuales && videosActuales.length > 0
+        ? videosActuales[0].orden + 1
+        : 1
+
+    const fileExt = videoFile.name.split(".").pop()
+    const fileName = `curso_${id_curso}_${Date.now()}.${fileExt}`
+
+    const arrayBuffer = await videoFile.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("videos")
+      .upload(fileName, buffer, {
+        contentType: videoFile.type,
+        upsert: true,
+      })
+
+    if (uploadError) throw uploadError
+
+    const { data: urlData } = supabaseAdmin.storage
+      .from("videos")
+      .getPublicUrl(fileName)
+
+    const { data: nuevoVideo, error: dbError } = await supabaseAdmin
+      .from("videos")
+      .insert({
+        id_curso: parseInt(id_curso as string),
+        titulo: titulo as string,
+        url_video: urlData.publicUrl,
+        duracion,
+        orden: nuevoOrden,
+      })
+      .select()
+      .single()
+
+    if (dbError) throw dbError
+
+    return NextResponse.json(
+      { message: "Video subido", video: nuevoVideo },
+      { status: 201 }
+    )
+  } catch (error: any) {
+    console.error("Error catastrófico al subir video:", error)
+    return NextResponse.json(
+      { error: "Error interno del servidor al procesar el archivo" },
+      { status: 500 }
+    )
+  }
 }

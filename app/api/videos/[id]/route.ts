@@ -1,171 +1,106 @@
-import { NextResponse } from "next/server";
-import { getUserFromToken, hasRole } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { request } from "https";
+export const dynamic = "force-dynamic"
+import { NextResponse } from "next/server"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { getUserFromToken, hasRole } from "@/lib/auth"
 
-//* ACTUALIZAR VIDEO POR ID
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-    try {
-        const { id } = await params;
-        const user = await getUserFromToken(request);
+// ACTUALIZAR TÍTULO DEL VIDEO
+export async function PUT(request: Request, context: any) {
+  try {
+    const params = await Promise.resolve(context.params)
+    const id_video = params.id
 
-        if (!user) {
-            return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-        }
+    const user = await getUserFromToken(request)
+    if (!user)
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
-        const isProfesor = await hasRole(user.id, "profesor");
+    const isAdmin = await hasRole(user.id, "admin")
+    const isProfesor = await hasRole(user.id, "profesor")
 
-        if (!isProfesor) {
-            return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-        }
-
-        //* OBTENER VIDEO ACTUAL
-        const { data: videoActual } = await supabaseAdmin
-        .from("videos")
-        .select("id_curso, url_video")
-        .eq("id_video", id)
-        .single();
-
-        //* VALIDAR PROPIEDAD
-        const { data: curso } = await supabaseAdmin
-        .from("cursos")
-        .select("id_profesor")
-        .eq("id_curso", videoActual?.id_curso)
-        .single();
-
-        if (!curso || curso.id_profesor !== user.id) {
-            return NextResponse.json(
-                { error: "No puedes editar este video" },
-                { status: 403 }
-            );
-        }
-
-        const formData = await request.formData();
-        const nombre = formData.get("nombre") as string;
-        const duracion = formData.get("duracion") as string;
-        const videoFile = formData.get("video") as File | null;
-
-        let nuevaUrlVideo = videoActual?.url_video;
-
-        //* SI EXISTE NUEVO VIDEO
-        if (videoFile && videoFile.size > 0) {
-            //* SUBIMOS EL NUEVO VIDEO
-            const fileExt = videoFile.name.split(".").pop();
-            const fileName = `video/${user.id}-${Date.now()}.${fileExt}`;
-
-            const { error: uploadError } = await supabaseAdmin.storage
-            .from("videos")
-            .upload(fileName, videoFile, {
-                upsert: true,
-            });
-
-            if (uploadError) {
-                console.error(uploadError);
-                return NextResponse.json(
-                    { error: "Error al subir video" },
-                    { status: 500 }
-                );
-            }
-
-            //* OBTENEMOS LA URL
-            const { data } = supabaseAdmin.storage
-            .from("videos")
-            .getPublicUrl(fileName);
-            nuevaUrlVideo = data.publicUrl;
-
-            //* ELIMINAMOS VIDEO ANTERIOR
-            if (videoActual?.url_video) {
-                const pathAnterior = videoActual.url_video.split("/").pop();
-                if (pathAnterior) {
-                    await supabaseAdmin.storage
-                    .from("videos")
-                    .remove([pathAnterior]);
-                }
-            }
-        }
-
-        //* ACTUALIZAMOS EL REGISTRO EN BASE DE DATOS
-        const { error } = await supabaseAdmin
-        .from("videos")
-        .update({
-            titulo: nombre,
-            url_video: nuevaUrlVideo,
-            duracion,
-        })
-        .eq("id_video", id);
-
-        if (error) {
-            return NextResponse.json(
-                { error: error.message },
-                { status: 500 }
-            );
-        }
-
-        //* MENSAJE EXITOSO
-        return NextResponse.json(
-            { message: "Video actualizado correctamente" },
-            { status : 200 }
-        );
-    } catch (error) {
-        return NextResponse.json(
-            { error: "Error al actualizar video" },
-            { status: 500 }
-        );
+    if (!isAdmin && !isProfesor) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
+
+    const body = await request.json()
+    const { titulo } = body
+
+    if (!titulo)
+      return NextResponse.json(
+        { error: "El título es requerido" },
+        { status: 400 }
+      )
+
+    const { error } = await supabaseAdmin
+      .from("videos")
+      .update({ titulo: titulo })
+      .eq("id_video", id_video)
+
+    if (error) {
+      console.error("Error de Supabase:", error.message)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json(
+      { message: "Lección actualizada" },
+      { status: 200 }
+    )
+  } catch (error: any) {
+    console.error(
+      "Error catastrófico en PUT /api/videos/[id]:",
+      error.message || error
+    )
+    return NextResponse.json(
+      { error: "Error interno del servidor al actualizar" },
+      { status: 500 }
+    )
+  }
 }
 
-//* ELIMINAR VIDEO
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+// ELIMINAR VIDEO
+export async function DELETE(request: Request, context: any) {
   try {
-    const { id } = await params;
-    const user = await getUserFromToken(request);
+    const params = await Promise.resolve(context.params)
+    const id_video = params.id
 
-    if (!user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    const user = await getUserFromToken(request)
+    if (!user)
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 })
 
-    const esProfesor = await hasRole(user.id, "profesor");
+    const isAdmin = await hasRole(user.id, "admin")
+    const isProfesor = await hasRole(user.id, "profesor")
 
-    if (!esProfesor) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    if (!isAdmin && !isProfesor)
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 })
 
-    //* OBTENER VIDEO
     const { data: video } = await supabaseAdmin
       .from("videos")
-      .select("id_curso")
-      .eq("id_video", id)
-      .single();
-
-    //* VALIDAR PROPIEDAD
-    const { data: curso } = await supabaseAdmin
-      .from("cursos")
-      .select("id_profesor")
-      .eq("id_curso", video?.id_curso)
-      .single();
-
-    if (!curso || curso.id_profesor !== user.id) {
-      return NextResponse.json(
-        { error: "No puedes eliminar este video" },
-        { status: 403 }
-      );
+      .select("url_video")
+      .eq("id_video", id_video)
+      .single()
+    if (video) {
+      const fileName = video.url_video.split("/").pop()
+      if (fileName)
+        await supabaseAdmin.storage.from("videos").remove([fileName])
     }
 
     const { error } = await supabaseAdmin
       .from("videos")
-      .update({ estatus: 0 })
-      .eq("id_video", id);
+      .delete()
+      .eq("id_video", id_video)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Error al borrar de Supabase:", error.message)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ message: "Video eliminado" });
-
-  } catch (error) {
+    return NextResponse.json({ message: "Video eliminado" }, { status: 200 })
+  } catch (error: any) {
+    console.error(
+      "Error catastrófico en DELETE /api/videos/[id]:",
+      error.message || error
+    )
     return NextResponse.json(
-      { error: "Error al eliminar video" },
+      { error: "Error al eliminar el video" },
       { status: 500 }
-    );
+    )
   }
 }

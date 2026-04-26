@@ -14,7 +14,6 @@ export async function GET() {
             nombre,
             descripcion,
             fecha_creacion,
-            estatus,
             perfiles (
                 nombre_completo
             )
@@ -55,7 +54,8 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { nombre, descripcion } = body
+    const { nombre, descripcion, estatus } = body
+
     if (!nombre || !descripcion) {
       return NextResponse.json(
         { error: "Nombre y descripción son obligatorios" },
@@ -63,25 +63,26 @@ export async function POST(request: Request) {
       )
     }
 
-    const { error: cursoError } = await supabaseAdmin
+    // EXTRAEMOS LA DATA y agregamos .select()
+    const { data: cursoCreado, error: cursoError } = await supabaseAdmin
       .from("cursos")
       .insert([
         {
           nombre: nombre,
           descripcion: descripcion,
           id_profesor: user.id,
+          estatus: estatus !== undefined ? estatus : 1,
         },
       ])
+      .select() // <-- MUY IMPORTANTE: Le dice a Supabase que te devuelva el registro creado
       .single()
+
     if (cursoError) {
       return NextResponse.json({ error: cursoError.message }, { status: 500 })
     }
 
-    //* RESPUESTA EXITOSA
-    return NextResponse.json(
-      { message: "Curso creado correctamente" },
-      { status: 201 }
-    )
+    //* RESPUESTA EXITOSA (Devolvemos el curso completo en lugar de solo el mensaje)
+    return NextResponse.json(cursoCreado, { status: 201 })
   } catch (error) {
     return NextResponse.json(
       { error: "Error al crear el curso" },

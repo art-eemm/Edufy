@@ -180,8 +180,8 @@ export default function EstadisticasProfesorPage() {
                       border: "1px solid hsl(var(--border))",
                       borderRadius: "8px",
                     }}
-                    formatter={(value: number | undefined) =>
-                      value !== undefined
+                    formatter={(value: any) =>
+                      value !== undefined && typeof value === "number"
                         ? [value, "Estudiantes"]
                         : ["N/A", "Estudiantes"]
                     }
@@ -227,8 +227,10 @@ export default function EstadisticasProfesorPage() {
                       border: "1px solid hsl(var(--border))",
                       borderRadius: "8px",
                     }}
-                    formatter={(value: number | undefined) => [
-                      value !== undefined ? `$${value.toLocaleString()}` : "$0",
+                    formatter={(value: any) => [
+                      typeof value === "number"
+                        ? `$${value.toLocaleString()}`
+                        : "$0",
                       "Ingresos",
                     ]}
                   />
@@ -282,7 +284,13 @@ export default function EstadisticasProfesorPage() {
                       border: "1px solid hsl(var(--border))",
                       borderRadius: "8px",
                     }}
-                    formatter={(value: number) => [value, "Estudiantes"]}
+                    formatter={(
+                      value:
+                        | number
+                        | string
+                        | readonly (string | number)[]
+                        | undefined
+                    ) => [typeof value === "number" ? value : 0, "Estudiantes"]}
                   />
                   <Legend />
                 </PieChart>

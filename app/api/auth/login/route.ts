@@ -1,61 +1,77 @@
 import { NextResponse } from "next/server"
 import { supabaseClient } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 
-//* INICIO DE SESION
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const { email, password } = body
+    const { email, password } = await request.json()
 
-    //* VALIDACION DE INFORMACION
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: "email y password son obligatorios" },
-        { status: 400 }
-      )
-    }
+    // 1. INTENTO DE INICIO DE SESIÓN
+    const { data, error: authError } =
+      await supabaseClient.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    //* LOGIN
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (error) {
-      console.log("Error al iniciar sesión:", error)
+    if (authError) {
       return NextResponse.json(
-        { error: "Crendenciales incorrectas" },
+        { error: "Credenciales inválidas. Revisa tu correo y contraseña." },
         { status: 401 }
       )
     }
 
-    //* OBTENER INFORMACION DEL USUARIO LOGUEADO
     const user = data.user
-    const token = data.session?.access_token
-    const { data: profile, error: profileError } = await supabaseClient
-      .from("perfiles")
-      .select("nombre_completo, rol:roles(nombre)")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError) {
+    if (!user) {
       return NextResponse.json(
-        { error: "Error al obtener el perfil del usuario" },
-        { status: 500 }
+        { error: "No se pudo obtener el usuario" },
+        { status: 400 }
       )
     }
 
-    //* RESPUESTA EXITOSA
+    // 2. OBTENER INFORMACIÓN DEL PERFIL Y EL ROL ASOCIADO
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("perfiles")
+      .select(
+        `
+        nombre_completo,
+        rol:roles ( nombre )
+      `
+      )
+      .eq("id", user.id)
+      .single()
+
+    if (profileError || !profile) {
+      console.error("Error al obtener perfil:", profileError)
+      return NextResponse.json(
+        {
+          error:
+            "El usuario no tiene un perfil configurado en la base de datos.",
+        },
+        { status: 404 }
+      )
+    }
+
+    // 3. SOLUCIÓN AL ERROR DE TYPESCRIPT
+    const rawRole = profile.rol as any
+    const roleName = Array.isArray(rawRole)
+      ? rawRole[0]?.nombre
+      : rawRole?.nombre
+
+    // 4. RESPUESTA EXITOSA
     return NextResponse.json(
       {
-        message: "Usuario logueado correctamente",
         user: user.email,
         name: profile.nombre_completo,
-        role: profile.rol?.nombre,
-        token: token,
+        role: roleName || "estudiante",
+        token: data.session?.access_token,
       },
       { status: 200 }
     )
-  } catch (error) {
-    return NextResponse.json({ error: "Error en el registro" }, { status: 500 })
+  } catch (error: any) {
+    console.error("Error catastrófico en el servidor:", error.message || error)
+    return NextResponse.json(
+      { error: "Ocurrió un error inesperado en el servidor." },
+      { status: 500 }
+    )
   }
 }
