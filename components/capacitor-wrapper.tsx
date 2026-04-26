@@ -11,9 +11,9 @@ export function CapacitorWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
-      StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {})
-      StatusBar.setStyle({ style: Style.Dark }).catch(() => {})
+      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {})
 
+      StatusBar.setStyle({ style: Style.Light }).catch(() => {})
       const backButtonListener = App.addListener("backButton", () => {
         if (
           window.location.pathname === "/login" ||
