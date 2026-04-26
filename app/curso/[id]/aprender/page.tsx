@@ -119,40 +119,27 @@ export default function AprenderCursoPage() {
   }, [id, router])
 
   // Función para validar si se puede ver un video al hacer clic en la lista
-  const handleSeleccionarVideo = async (video: Video) => {
+  const handleSeleccionarVideo = (video: Video) => {
     if (video.id_video === videoActual?.id_video) return
 
-    setIsCargandoVideo(true)
-    const { token } = JSON.parse(localStorage.getItem("edufy_user")!)
+    const isDesbloqueado =
+      video.orden <= progreso.completados + 1 || progreso.porcentaje === 100
 
-    try {
-      const res = await fetch(`/api/progreso/video/${video.id_video}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const data = await res.json()
-
-      if (!res.ok || !data.permitido) {
-        toast.error(
-          "Debes completar el video anterior para desbloquear esta lección."
-        )
-        return
-      }
-
-      setVideoActual(video)
-    } catch (error) {
-      toast.error("Error al validar acceso al video")
-    } finally {
-      setIsCargandoVideo(false)
+    if (!isDesbloqueado) {
+      toast.error(
+        "Debes completar el video anterior para desbloquear esta lección."
+      )
+      return
     }
+
+    setVideoActual(video)
   }
 
-  // Función que se dispara cuando el video llega a su fin automáticamente
   const handleVideoTerminado = async () => {
     if (!videoActual) return
     const { token } = JSON.parse(localStorage.getItem("edufy_user")!)
 
     try {
-      // 1. Marcar como visto
       const res = await fetch("/api/progreso/visto", {
         method: "POST",
         headers: {
@@ -165,16 +152,14 @@ export default function AprenderCursoPage() {
       if (res.ok) {
         toast.success("¡Lección completada!")
 
-        // 2. Actualizar la barra de progreso
         await fetchProgresoCurso(token)
 
-        // 3. Avanzar automáticamente al siguiente video si existe
         const indiceActual = videos.findIndex(
           (v) => v.id_video === videoActual.id_video
         )
         if (indiceActual < videos.length - 1) {
           const siguienteVideo = videos[indiceActual + 1]
-          setVideoActual(siguienteVideo) // Lo liberamos automáticamente
+          setVideoActual(siguienteVideo)
           toast.info(`Reproduciendo siguiente: ${siguienteVideo.titulo}`)
         } else {
           toast.success(
