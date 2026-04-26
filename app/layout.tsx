@@ -1,12 +1,20 @@
-import { Geist, Geist_Mono } from "next/font/google"
 import type { Metadata } from "next"
+import { Montserrat } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
+import { CapacitorWrapper } from "@/components/capacitor-wrapper"
+import { Toaster } from "@/components/ui/sonner"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const montserrat = Montserrat({ subsets: ["latin"] })
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  maximumScale: 1,
+}
 
 export const metadata: Metadata = {
   title: "Edufy - Plataforma de Aprendizaje en Línea",
@@ -38,14 +46,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className="bg-background" suppressHydrationWarning>
-      <body className="font-sans antialiased">
+      <body className={cn(montserrat.className, "antialiased")}>
         <ThemeProvider
           attribute={"class"}
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <CapacitorWrapper>{children}</CapacitorWrapper>
+          <Toaster position="top-center" richColors />
         </ThemeProvider>
       </body>
     </html>
