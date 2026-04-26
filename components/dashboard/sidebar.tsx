@@ -135,6 +135,11 @@ const teacherLinks = [
     label: "Estudiantes",
     icon: Users,
   },
+  {
+    href: "/dashboard/profesor/perfil",
+    label: "Mi Perfil",
+    icon: UserCircle,
+  },
   // {
   //   href: "/dashboard/profesor/estadisticas",
   //   label: "Estadísticas",
