@@ -5,7 +5,7 @@ import { Button } from "../ui/button"
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-background py-20 sm:py-32">
-      <div className="absolute inset-0 z-10 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
         <div className="absolute -top-40 right-0 h-125 w-125 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute -bottom-40 left-0 h-100 w-100 rounded-full bg-accent/10 blur-3xl" />
       </div>

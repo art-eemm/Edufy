@@ -11,41 +11,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 })
     }
 
-    const contentType = request.headers.get("content-type") || ""
-    if (!contentType.includes("multipart/form-data")) {
+    const body = await request.json()
+    const { id_curso, titulo, duracion, url_video } = body
+
+    if (!id_curso || !titulo || !url_video) {
       return NextResponse.json(
-        { error: "El formato de envío debe ser multipart/form-data" },
+        { error: "Faltan datos obligatorios para registrar el video" },
         { status: 400 }
       )
     }
-
-    const formData = await request.formData()
-
-    const id_curso = formData.get("id_curso")
-    const titulo = formData.get("titulo")
-    const duracionStr = formData.get("duracion")
-    const videoFile = formData.get("video") as File | null
-
-    if (!id_curso || id_curso === "undefined") {
-      return NextResponse.json(
-        { error: "Error interno: El ID del curso no llegó a la API" },
-        { status: 400 }
-      )
-    }
-    if (!titulo) {
-      return NextResponse.json(
-        { error: "Falta el título de la lección" },
-        { status: 400 }
-      )
-    }
-    if (!videoFile || videoFile.size === 0) {
-      return NextResponse.json(
-        { error: "El archivo de video está vacío o no se adjuntó" },
-        { status: 400 }
-      )
-    }
-
-    const duracion = parseInt(duracionStr as string) || 0
 
     const { data: videosActuales } = await supabaseAdmin
       .from("videos")
@@ -59,32 +33,14 @@ export async function POST(request: Request) {
         ? videosActuales[0].orden + 1
         : 1
 
-    const fileExt = videoFile.name.split(".").pop()
-    const fileName = `curso_${id_curso}_${Date.now()}.${fileExt}`
-
-    const arrayBuffer = await videoFile.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from("videos")
-      .upload(fileName, buffer, {
-        contentType: videoFile.type,
-        upsert: true,
-      })
-
-    if (uploadError) throw uploadError
-
-    const { data: urlData } = supabaseAdmin.storage
-      .from("videos")
-      .getPublicUrl(fileName)
-
+    // 2. Guardamos el registro en la base de datos
     const { data: nuevoVideo, error: dbError } = await supabaseAdmin
       .from("videos")
       .insert({
         id_curso: parseInt(id_curso as string),
-        titulo: titulo as string,
-        url_video: urlData.publicUrl,
-        duracion,
+        titulo: titulo,
+        url_video: url_video,
+        duracion: duracion || 0,
         orden: nuevoOrden,
       })
       .select()
@@ -93,13 +49,13 @@ export async function POST(request: Request) {
     if (dbError) throw dbError
 
     return NextResponse.json(
-      { message: "Video subido", video: nuevoVideo },
+      { message: "Registro exitoso", video: nuevoVideo },
       { status: 201 }
     )
   } catch (error: any) {
-    console.error("Error catastrófico al subir video:", error)
+    console.error("Error al registrar video:", error)
     return NextResponse.json(
-      { error: "Error interno del servidor al procesar el archivo" },
+      { error: "Error interno del servidor" },
       { status: 500 }
     )
   }
