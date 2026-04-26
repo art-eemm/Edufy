@@ -27,6 +27,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card"
+import { supabaseClient } from "@/lib/supabaseClient"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -110,7 +111,6 @@ export default function EditarCursoPage() {
     }
   }
 
-  // ============== NUEVA FUNCIÓN: ACTUALIZAR TÍTULO DE VIDEO ==============
   const handleGuardarTituloVideo = async (id_video: number) => {
     if (!editingVideoTitle.trim())
       return toast.error("El título no puede estar vacío")
@@ -161,34 +161,65 @@ export default function EditarCursoPage() {
       return toast.error("Faltan datos del video")
 
     setIsUploading(true)
-    const { token } = JSON.parse(localStorage.getItem("edufy_user")!)
+    const storedUser = localStorage.getItem("edufy_user")
+    const { token } = JSON.parse(storedUser!)
 
     try {
-      const formData = new FormData()
-      formData.append("id_curso", id as string)
-      formData.append("titulo", nuevoVideoTitulo)
-      formData.append("duracion", nuevoVideoDuracion.toString())
-      formData.append("video", nuevoVideoFile)
+      // 1. SUBIMOS EL ARCHIVO DIRECTAMENTE A SUPABASE DESDE EL NAVEGADOR
+      // Así evitamos pasar por la limitación de 4.5MB de Vercel
+      const fileExt = nuevoVideoFile.name.split(".").pop()
+      const fileName = `curso_${id}_${Date.now()}.${fileExt}`
+
+      const { error: uploadError } = await supabaseClient.storage
+        .from("videos")
+        .upload(fileName, nuevoVideoFile, {
+          cacheControl: "3600",
+          upsert: false,
+        })
+
+      if (uploadError) {
+        console.error("Error de Storage:", uploadError)
+        toast.error("Error al subir el archivo al servidor de almacenamiento")
+        setIsUploading(false)
+        return
+      }
+
+      const { data: urlData } = supabaseClient.storage
+        .from("videos")
+        .getPublicUrl(fileName)
 
       const response = await fetch("/api/videos", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id_curso: id,
+          titulo: nuevoVideoTitulo,
+          duracion: nuevoVideoDuracion,
+          url_video: urlData.publicUrl,
+        }),
       })
 
       if (response.ok) {
-        toast.success("Video subido correctamente")
+        toast.success("Lección publicada correctamente")
         const nuevoVideo = await response.json()
         setVideos([...videos, nuevoVideo.video])
+
+        // Limpiar formulario
         setNuevoVideoTitulo("")
         setNuevoVideoFile(null)
         setNuevoVideoDuracion(0)
         if (fileInputRef.current) fileInputRef.current.value = ""
       } else {
-        toast.error("Error al subir video")
+        const errorData = await response.json()
+        toast.error(
+          errorData.error || "Error al registrar el video en la base de datos"
+        )
       }
     } catch (error) {
-      toast.error("Error al subir el archivo")
+      toast.error("Fallo de conexión")
     } finally {
       setIsUploading(false)
     }
