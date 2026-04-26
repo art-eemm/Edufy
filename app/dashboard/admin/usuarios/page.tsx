@@ -9,6 +9,8 @@ import {
   User as UserIcon,
   ShieldAlert,
   ShieldCheck,
+  Mail,
+  Lock,
 } from "lucide-react"
 import {
   Table,
@@ -26,8 +28,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -42,7 +61,7 @@ interface Usuario {
   id: string
   nombre_completo: string
   rol: number
-  estatus?: number // 1 = Activo, 0 = Suspendido
+  estatus?: number
 }
 
 export default function AdminUsuariosPage() {
@@ -50,6 +69,16 @@ export default function AdminUsuariosPage() {
   const [busqueda, setBusqueda] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+  // Estados para el Modal de Nuevo Usuario
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isRegistering, setIsRegistering] = useState(false)
+  const [formData, setFormData] = useState({
+    nombre: "",
+    correo: "",
+    password: "",
+    rol: "2", // Valor inicial: Estudiante
+  })
 
   useEffect(() => {
     fetchUsuarios()
@@ -77,7 +106,37 @@ export default function AdminUsuariosPage() {
     }
   }
 
-  // Función maestra para actualizar el rol o el estado
+  const handleRegistrarUsuario = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsRegistering(true)
+
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          rol: parseInt(formData.rol), // Enviamos el rol como número
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        toast.success("Usuario registrado exitosamente")
+        setIsModalOpen(false)
+        setFormData({ nombre: "", correo: "", password: "", rol: "2" })
+        fetchUsuarios()
+      } else {
+        toast.error(data.error || "Error al registrar usuario")
+      }
+    } catch (error) {
+      toast.error("Error de conexión al registrar")
+    } finally {
+      setIsRegistering(false)
+    }
+  }
+
   const actualizarUsuario = async (
     idUsuario: string,
     datosNuevos: { rol?: number; estatus?: number }
@@ -98,7 +157,6 @@ export default function AdminUsuariosPage() {
 
       if (response.ok) {
         toast.success("Usuario actualizado correctamente")
-        // Actualizamos el estado local sin tener que recargar toda la tabla
         setUsuarios((prev) =>
           prev.map((u) => (u.id === idUsuario ? { ...u, ...datosNuevos } : u))
         )
@@ -158,9 +216,110 @@ export default function AdminUsuariosPage() {
             Administra los roles y accesos de todos los usuarios registrados.
           </p>
         </div>
-        <Button>
-          <UserPlus className="mr-2 h-4 w-4" /> Nuevo Usuario
-        </Button>
+
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <UserPlus className="mr-2 h-4 w-4" /> Nuevo Usuario
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <form onSubmit={handleRegistrarUsuario}>
+              <DialogHeader>
+                <DialogTitle>Registrar Nuevo Usuario</DialogTitle>
+                <DialogDescription>
+                  Crea una cuenta y asigna los permisos correspondientes.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nombre Completo</Label>
+                  <div className="relative">
+                    <UserIcon className="absolute top-3 left-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="name"
+                      placeholder="Ej. Juan Pérez"
+                      className="pl-10"
+                      value={formData.nombre}
+                      onChange={(e) =>
+                        setFormData({ ...formData, nombre: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Correo Electrónico</Label>
+                  <div className="relative">
+                    <Mail className="absolute top-3 left-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="correo@ejemplo.com"
+                      className="pl-10"
+                      value={formData.correo}
+                      onChange={(e) =>
+                        setFormData({ ...formData, correo: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Contraseña Temporal</Label>
+                  <div className="relative">
+                    <Lock className="absolute top-3 left-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Min. 6 caracteres"
+                      className="pl-10"
+                      value={formData.password}
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Rol del Usuario</Label>
+                  <Select
+                    value={formData.rol}
+                    onValueChange={(val) =>
+                      setFormData({ ...formData, rol: val })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecciona un rol" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">Estudiante</SelectItem>
+                      <SelectItem value="3">Profesor</SelectItem>
+                      <SelectItem value="1">Administrador</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isRegistering}
+                >
+                  {isRegistering ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Registrando...
+                    </>
+                  ) : (
+                    "Crear Cuenta"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card>
@@ -275,9 +434,7 @@ export default function AdminUsuariosPage() {
                                 Estudiante
                               </DropdownMenuItem>
                             )}
-
                             <DropdownMenuSeparator />
-
                             {usuario.estatus === 0 ? (
                               <DropdownMenuItem
                                 className="text-green-600 focus:text-green-600"
