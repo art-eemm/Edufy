@@ -49,8 +49,14 @@ export async function getUserProfile(userId: string) {
   return data
 }
 
-//* VALIDACION DE ROLES
 export async function hasRole(userId: string, role: string) {
   const perfil = await getUserProfile(userId)
-  return perfil?.roles?.[0]?.nombre?.toLowerCase() === role.toLowerCase()
+  if (!perfil || !perfil.roles) return false
+
+  // Verificamos si es un array o un objeto directamente
+  const rolName = Array.isArray(perfil.roles)
+    ? perfil.roles[0]?.nombre
+    : (perfil.roles as any)?.nombre
+
+  return rolName?.toLowerCase() === role.toLowerCase()
 }

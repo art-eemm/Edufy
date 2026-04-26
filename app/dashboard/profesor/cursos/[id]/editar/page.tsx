@@ -27,7 +27,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card"
-import { supabaseClient } from "@/lib/supabaseClient"
+import { createClient } from "@supabase/supabase-js"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -165,12 +165,21 @@ export default function EditarCursoPage() {
     const { token } = JSON.parse(storedUser!)
 
     try {
-      // 1. SUBIMOS EL ARCHIVO DIRECTAMENTE A SUPABASE DESDE EL NAVEGADOR
-      // Así evitamos pasar por la limitación de 4.5MB de Vercel
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+
+      const supabaseUploadClient = createClient(supabaseUrl, supabaseKey, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      })
+
       const fileExt = nuevoVideoFile.name.split(".").pop()
       const fileName = `curso_${id}_${Date.now()}.${fileExt}`
 
-      const { error: uploadError } = await supabaseClient.storage
+      const { error: uploadError } = await supabaseUploadClient.storage
         .from("videos")
         .upload(fileName, nuevoVideoFile, {
           cacheControl: "3600",
@@ -178,13 +187,13 @@ export default function EditarCursoPage() {
         })
 
       if (uploadError) {
-        console.error("Error de Storage:", uploadError)
-        toast.error("Error al subir el archivo al servidor de almacenamiento")
+        console.error("Error detallado de Storage:", uploadError)
+        toast.error("No se pudo subir el archivo. Revisa la consola.")
         setIsUploading(false)
         return
       }
 
-      const { data: urlData } = supabaseClient.storage
+      const { data: urlData } = supabaseUploadClient.storage
         .from("videos")
         .getPublicUrl(fileName)
 
@@ -207,19 +216,18 @@ export default function EditarCursoPage() {
         const nuevoVideo = await response.json()
         setVideos([...videos, nuevoVideo.video])
 
-        // Limpiar formulario
         setNuevoVideoTitulo("")
         setNuevoVideoFile(null)
         setNuevoVideoDuracion(0)
         if (fileInputRef.current) fileInputRef.current.value = ""
       } else {
         const errorData = await response.json()
-        toast.error(
-          errorData.error || "Error al registrar el video en la base de datos"
-        )
+        console.error("Error de la API:", errorData)
+        toast.error(errorData.error || "Error al registrar el video")
       }
     } catch (error) {
-      toast.error("Fallo de conexión")
+      console.error("Error general en la subida:", error)
+      toast.error("Fallo inesperado durante la subida.")
     } finally {
       setIsUploading(false)
     }
